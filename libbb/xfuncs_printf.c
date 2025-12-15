@@ -464,6 +464,7 @@ DIR* FAST_FUNC xopendir(const char *path)
 	return dp;
 }
 
+#ifdef HAVE_NET
 // Die with an error message if we can't open a new socket.
 int FAST_FUNC xsocket(int domain, int type, int protocol)
 {
@@ -489,7 +490,6 @@ IF_FEATURE_IPV6(if (domain == AF_INET6) s = "INET6";)
 	return r;
 }
 
-#ifdef HAVE_NET
 // Die with an error message if we can't bind a socket to an address.
 void FAST_FUNC xbind(int sockfd, struct sockaddr *my_addr, socklen_t addrlen)
 {

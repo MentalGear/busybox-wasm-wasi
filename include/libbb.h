@@ -50,8 +50,8 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#if !defined(major) || defined(__GLIBC__)
-//# include <sys/sysmacros.h>
+#if !defined(major) && !defined(__APPLE__) || defined(__GLIBC__)
+# include <sys/sysmacros.h>
 #endif
 #include <sys/wait.h>
 #include <termios.h>

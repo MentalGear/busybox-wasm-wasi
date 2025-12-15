@@ -327,8 +327,12 @@ struct limits {
 
 /* Order of entries matches order in which bash prints "ulimit -a" */
 static const struct limits limits_tbl[] ALIGN2 = {
+#ifdef RLIMIT_CORE
 	{ RLIMIT_CORE,		9,	}, // -c
+#endif
+#ifdef RLIMIT_DATA
 	{ RLIMIT_DATA,		10,	}, // -d
+#endif
 #ifdef RLIMIT_NICE
 	{ RLIMIT_NICE,		0,	}, // -e
 #define LIMIT_F_IDX     3
@@ -336,7 +340,9 @@ static const struct limits limits_tbl[] ALIGN2 = {
 /* for example, Hurd */
 #define LIMIT_F_IDX     2
 #endif
+#ifdef RLIMIT_FSIZE
 	{ RLIMIT_FSIZE,		9,	}, // -f
+#endif
 #ifdef RLIMIT_SIGPENDING
 	{ RLIMIT_SIGPENDING,	0,	}, // -i
 #endif
@@ -682,7 +688,7 @@ shell_builtin_ulimit(char **argv)
 
 	if (opt_cnt == 0) {
 		/* "bare ulimit": treat it as if it was -f */
-		getrlimit(RLIMIT_FSIZE, &limit);
+		//getrlimit(RLIMIT_FSIZE, &limit);
 		printlim(opts, &limit, &limits_tbl[LIMIT_F_IDX]);
 	}
 

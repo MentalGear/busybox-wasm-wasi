@@ -8,6 +8,7 @@
  */
 #include "libbb.h"
 
+#ifdef HAVE_NET
 struct hostent* FAST_FUNC xgethostbyname(const char *name)
 {
 	struct hostent *retval = gethostbyname(name);
@@ -15,3 +16,4 @@ struct hostent* FAST_FUNC xgethostbyname(const char *name)
 		bb_simple_herror_msg_and_die(name);
 	return retval;
 }
+#endif
