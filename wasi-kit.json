@@ -4,7 +4,6 @@
     },
     "busybox_unstripped": {
         "output": "busybox.wasm",
-        "args": ["-lwasi-emulated-mman", "-lwasi-emulated-signal",
-                 "-Wl,-allow-undefined", "-Wl,-import-table"]
+        "args": ["-Wl,-allow-undefined", "-Wl,--export-table"]
     }
 }

@@ -194,6 +194,18 @@
 #else
 # define NUM_SCRIPTS 0
 #endif
+#ifdef __wasi__
+#define __wasik__
+#define __wasik_setjmp__
+//#define __wasik_fork__
+#define __wasix_vfork__
+#endif
+#ifdef __wasik__
+# include <wasi/control.h>
+# define wasi_block __block
+#else
+# define wasi_block
+#endif
 
 /* So far, all bash compat is controlled by one config option */
 /* Separate defines document which part of code implements what */
@@ -5340,7 +5352,7 @@ forkparent(struct job *jp, union node *n, int mode, pid_t pid)
 	}
 }
 
-#ifndef __wasi__
+#ifndef __wasik_fork__
 
 /* jp and n are NULL when called by openhere() for heredoc support */
 static int
@@ -5349,7 +5361,11 @@ forkshell(struct job *jp, union node *n, int mode)
 	int pid;
 
 	TRACE(("forkshell(%%%d, %p, %d) called\n", jobno(jp), n, mode));
+#ifdef __wasix_vfork__
+	pid = vfork();
+#else
 	pid = fork();
+#endif
 	if (pid < 0) {
 		TRACE(("Fork failed, errno=%d", errno));
 		if (jp)
@@ -5358,7 +5374,9 @@ forkshell(struct job *jp, union node *n, int mode)
 	}
 	if (pid == 0) {
 		CLEAR_RANDOM_T(&random_gen); /* or else $RANDOM repeats in child */
+#ifndef __wasix_vfork__
 		forkchild(jp, n, mode);
+#endif
 	} else {
 		forkparent(jp, n, mode, pid);
 	}
@@ -5367,8 +5385,7 @@ forkshell(struct job *jp, union node *n, int mode)
 
 #endif
 
-#ifdef __wasi__
-#include <wasi/control.h>
+#ifdef __wasik_fork__
 
 static int
 forkshell_cont(struct job *jp, union node *n, int mode, void (^cont)(int))
@@ -5377,6 +5394,7 @@ forkshell_cont(struct job *jp, union node *n, int mode, void (^cont)(int))
 
 	TRACE(("forkshell(%%%d, %p, %d) called\n", jobno(jp), n, mode));
 	pid = fork();
+    (void)n;
 
 	__control_fork(0, pid, ^ void (int pid) {
 		if (pid < 0) {
@@ -5428,6 +5446,8 @@ waitforjob(struct job *jp)
 	int st;
 
 	TRACE(("waitforjob(%%%d) called\n", jp ? jobno(jp) : 0));
+    if (jp)
+    	TRACE(("(nprocs=%d,ps0.ps_pid=%d)", jp->nprocs, jp->ps0.ps_pid));
 
 	/* In non-interactive shells, we _can_ get
 	 * a keyboard signal here and be EINTRed, but we just loop
@@ -5957,14 +5977,20 @@ redirect(union node *redir, int flags)
 static int
 redirectsafe(union node *redir, int flags)
 {
+#ifndef __wasik_setjmp__
 	int err;
+#endif
 	volatile int saveint;
 	struct jmploc *volatile savehandler = exception_handler;
-	struct jmploc jmploc;
+	wasi_block struct jmploc jmploc;
 
 	SAVE_INT(saveint);
 	/* "echo 9>/dev/null; echo >&9; echo result: $?" - result should be 1, not 2! */
+#ifdef __wasik_setjmp__
+    return __control_setjmp_with_return(jmploc.loc, ^ setjmp_ret_val (int err) {
+#else
 	err = setjmp(jmploc.loc); /* was = setjmp(jmploc.loc) * 2; */
+#endif
 	if (!err) {
 		exception_handler = &jmploc;
 		redirect(redir, flags);
@@ -5974,6 +6000,9 @@ redirectsafe(union node *redir, int flags)
 		longjmp(exception_handler->loc, 1);
 	RESTORE_INT(saveint);
 	return err;
+#ifdef __wasik_setjmp__
+    });
+#endif
 }
 
 #if BASH_PROCESS_SUBST
@@ -9465,13 +9494,18 @@ evaltree(union node *n, int flags)
 
 	if (checkexit && status) {
 		if (trap[NTRAP_ERR] && !in_trap_ERR) {
-			int err;
+			wasi_block int err;
 			struct jmploc *volatile savehandler = exception_handler;
-			struct jmploc jmploc;
+			wasi_block struct jmploc jmploc;
 
 			in_trap_ERR = 1;
 			trap_depth++;
+#ifdef __wasik_setjmp__
+            __control_setjmp(jmploc.loc, ^ (int jmp) {
+            err = jmp;
+#else
 			err = setjmp(jmploc.loc);
+#endif
 			if (!err) {
 				exception_handler = &jmploc;
 				savestatus = exitstatus;
@@ -9479,7 +9513,9 @@ evaltree(union node *n, int flags)
 			}
 			trap_depth--;
 			in_trap_ERR = 0;
-
+#ifdef __wasik_setjmp__
+            });
+#endif
 			exception_handler = savehandler;
 			if (err && exception_type != EXERROR)
 				longjmp(exception_handler->loc, 1);
@@ -10604,7 +10640,7 @@ evalcommand(union node *cmd, int flags)
 			break;
 		}
 #endif
-#ifdef __wasi__
+#ifdef __wasik_fork__
 		/* In the case of WASI, there is no `exec`; running a command
 		 * always requires (fake) forking.
 		 */
@@ -10684,13 +10720,19 @@ evalbltin(const struct builtincmd *cmd, int argc, char **argv, int flags)
 {
 	char *volatile savecmdname;
 	struct jmploc *volatile savehandler;
-	struct jmploc jmploc;
-	int status;
+	wasi_block struct jmploc jmploc;
+	wasi_block int status;
+#ifndef __wasik_setjmp__
 	int i;
+#endif
 
 	savecmdname = commandname;
 	savehandler = exception_handler;
+#ifdef __wasik_setjmp__
+    return __control_setjmp_with_return(jmploc.loc, ^ setjmp_ret_val (int i) {
+#else
 	i = setjmp(jmploc.loc);
+#endif
 	if (i)
 		goto cmddone;
 	exception_handler = &jmploc;
@@ -10710,6 +10752,9 @@ evalbltin(const struct builtincmd *cmd, int argc, char **argv, int flags)
 	exception_handler = savehandler;
 
 	return i;
+#ifdef __wasik_setjmp__
+    });
+#endif
 }
 
 static int
@@ -14705,10 +14750,10 @@ int ash_main(int argc UNUSED_PARAM, char **argv)
 #endif
 /* note: 'argc' is used only if embedded scripts are enabled */
 {
-	volatile smallint state;
-	struct jmploc jmploc;
-	struct stackmark smark;
-	int login_sh;
+	wasi_block volatile smallint state;
+	wasi_block struct jmploc jmploc;
+	wasi_block struct stackmark smark;
+	wasi_block int login_sh;
 
 	/* Initialize global data */
 	INIT_G_misc();
@@ -14724,7 +14769,12 @@ int ash_main(int argc UNUSED_PARAM, char **argv)
 #endif
 
 	state = 0;
+#ifdef __wasik_setjmp__
+    __control_setjmp(jmploc.loc, ^ void (int jmp) {
+    if (jmp) {
+#else
 	if (setjmp(jmploc.loc)) {
+#endif
 		smallint e;
 		smallint s;
 
@@ -14851,6 +14901,10 @@ int ash_main(int argc UNUSED_PARAM, char **argv)
 	TRACE(("End of main reached\n"));
 	exitshell();
 	/* NOTREACHED */
+#ifdef __wasik_setjmp__
+    });
+    return 0; /* cannot actually happen */
+#endif
 }
 
 
