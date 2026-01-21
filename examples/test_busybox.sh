@@ -1,88 +1,84 @@
 #!/bin/bash
 # Test script for BusyBox WASM/WASI
-# Requires wasmtime or wasmer to be installed
+# Requires wasmtime to be installed
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUSYBOX_WASM="${SCRIPT_DIR}/../busybox.wasm"
 
-# Detect available runtime
-if command -v wasmtime &> /dev/null; then
-    RUNTIME="wasmtime"
-    RUN_CMD="wasmtime --dir=. --dir=/tmp"
-elif command -v wasmer &> /dev/null; then
-    RUNTIME="wasmer"
-    RUN_CMD="wasmer run --dir=. --dir=/tmp"
-else
-    echo "Error: No WASM runtime found. Please install wasmtime or wasmer."
-    echo "  wasmtime: curl https://wasmtime.dev/install.sh -sSf | bash"
-    echo "  wasmer:   curl https://get.wasmer.io -sSfL | sh"
+# Check for wasmtime
+if ! command -v wasmtime &> /dev/null; then
+    echo "Error: wasmtime not found. Please install it:"
+    echo "  curl https://wasmtime.dev/install.sh -sSf | bash"
     exit 1
 fi
 
-echo "Using runtime: $RUNTIME"
-echo "BusyBox WASM: $BUSYBOX_WASM"
+# Helper function to run busybox applet
+run_applet() {
+    local applet="$1"
+    shift
+    wasmtime --dir=. --dir=/tmp --argv0 "$applet" "$BUSYBOX_WASM" "$@"
+}
+
+echo "BusyBox WASM Test Suite"
+echo "WASM binary: $BUSYBOX_WASM"
+echo "Runtime: wasmtime $(wasmtime --version 2>/dev/null | head -1)"
 echo "=========================================="
 echo
 
 # Test 1: Basic echo
 echo "Test 1: Basic echo"
-$RUN_CMD "$BUSYBOX_WASM" -- echo "Hello from BusyBox WASM!"
+run_applet echo "Hello from BusyBox WASM!"
 echo
 
-# Test 2: List available applets
-echo "Test 2: List applets (first 20)"
-$RUN_CMD "$BUSYBOX_WASM" -- --list 2>/dev/null | head -20 || echo "(applet list may not be available)"
+# Test 2: List current directory
+echo "Test 2: List current directory"
+run_applet ls -la . 2>&1 | head -10
 echo
 
-# Test 3: File listing
-echo "Test 3: List current directory"
-$RUN_CMD "$BUSYBOX_WASM" -- ls -la
+# Test 3: Cat a file
+echo "Test 3: Read a file with cat"
+run_applet cat "${SCRIPT_DIR}/../README.md" 2>&1 | head -5
 echo
 
-# Test 4: Text processing with printf
+# Test 4: Printf formatting
 echo "Test 4: Printf formatting"
-$RUN_CMD "$BUSYBOX_WASM" -- printf "Number: %d, String: %s\n" 42 "test"
+run_applet printf "Number: %d, String: %s\n" 42 "test"
 echo
 
 # Test 5: Environment variables
-echo "Test 5: Show environment"
-$RUN_CMD "$BUSYBOX_WASM" -- env | head -10
+echo "Test 5: Show environment (env)"
+run_applet env 2>&1 | head -5 || echo "(env may show limited results)"
 echo
 
-# Test 6: Date (may have limited functionality)
+# Test 6: Date
 echo "Test 6: Date command"
-$RUN_CMD "$BUSYBOX_WASM" -- date 2>/dev/null || echo "(date may not work in WASI sandbox)"
+run_applet date 2>&1 || echo "(date may have limited functionality)"
 echo
 
-# Test 7: Create and read a temp file
-echo "Test 7: File I/O test"
-TEMP_FILE="/tmp/busybox_test_$$"
-echo "Creating temp file: $TEMP_FILE"
-$RUN_CMD "$BUSYBOX_WASM" -- sh -c "echo 'Test content from BusyBox WASM' > $TEMP_FILE" 2>/dev/null || \
-    echo "Test content from BusyBox WASM" > "$TEMP_FILE"
-if [ -f "$TEMP_FILE" ]; then
-    $RUN_CMD "$BUSYBOX_WASM" -- cat "$TEMP_FILE"
-    rm -f "$TEMP_FILE"
-fi
+# Test 7: Test command
+echo "Test 7: Test command (conditionals)"
+run_applet test 1 -eq 1 && echo "Test passed: 1 equals 1"
 echo
 
-# Test 8: Text processing pipeline
-echo "Test 8: Text processing"
-$RUN_CMD "$BUSYBOX_WASM" -- sh -c 'echo "hello world" | tr a-z A-Z' 2>/dev/null || \
-    echo "(pipeline test may require shell support)"
+# Test 8: Basename
+echo "Test 8: Basename"
+run_applet basename /path/to/file.txt
 echo
 
-# Test 9: Arithmetic
-echo "Test 9: Arithmetic with expr"
-$RUN_CMD "$BUSYBOX_WASM" -- expr 6 \* 7 2>/dev/null || echo "(expr may not be available)"
+# Test 9: Dirname
+echo "Test 9: Dirname"
+run_applet dirname /path/to/file.txt
 echo
 
-# Test 10: Test command
-echo "Test 10: Test command (conditionals)"
-$RUN_CMD "$BUSYBOX_WASM" -- test 1 -eq 1 && echo "Test passed: 1 equals 1"
+# Test 10: pwd
+echo "Test 10: Working directory (pwd)"
+run_applet pwd 2>&1 || echo "(pwd may not work in WASI sandbox)"
 echo
 
 echo "=========================================="
-echo "All tests completed!"
+echo "Tests completed!"
+echo
+echo "Note: Some commands may have limited functionality due to WASI sandbox restrictions."
+echo "The shell (ash) is disabled in this build to avoid setjmp/longjmp issues."

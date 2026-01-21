@@ -16,4 +16,14 @@ def nonempty(filename):
 obj = [fn for fn in obj.split() if nonempty(fn)]
 lib = [fn for fn in lib.split() if nonempty(fn)]
 
-os.system(" ".join([cc, '-o', out, cflags, ldflags, *obj, *lib]))
+# For WASI builds, we need to force inclusion of libbb/lib.a which contains main
+# Use --whole-archive for libbb to ensure __main_argc_argv is linked
+libbb_libs = [l for l in lib if 'libbb/lib.a' in l]
+other_libs = [l for l in lib if 'libbb/lib.a' not in l]
+
+if libbb_libs:
+    lib_args = ['-Wl,--whole-archive'] + libbb_libs + ['-Wl,--no-whole-archive'] + other_libs
+else:
+    lib_args = lib
+
+os.system(" ".join([cc, '-o', out, cflags, ldflags, *obj, *lib_args]))

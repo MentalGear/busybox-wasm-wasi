@@ -6,7 +6,7 @@ A port of [BusyBox](https://busybox.net/) to WebAssembly with WASI (WebAssembly 
 
 This project provides BusyBox compiled to WebAssembly, allowing you to run common Unix utilities in any WASI-compatible runtime, including browsers (via wasi-kernel), Wasmtime, Wasmer, and more.
 
-**Pre-built binary:** `busybox.wasm` (70KB)
+**Pre-built binary:** `busybox.wasm` (~785KB)
 
 ## Quick Start
 
@@ -16,22 +16,16 @@ This project provides BusyBox compiled to WebAssembly, allowing you to run commo
 # Install wasmtime (https://wasmtime.dev/)
 curl https://wasmtime.dev/install.sh -sSf | bash
 
-# Run BusyBox commands
-wasmtime busybox.wasm -- echo "Hello from WASM!"
-wasmtime busybox.wasm -- ls -la
-wasmtime busybox.wasm -- cat /etc/passwd
+# Run BusyBox commands using --argv0 to specify the applet name
+wasmtime --dir=. --argv0 echo busybox.wasm "Hello from WASM!"
+wasmtime --dir=. --argv0 ls busybox.wasm -la
+wasmtime --dir=. --argv0 cat busybox.wasm file.txt
+
+# Alternative: Use busybox directly with applet as first argument
+wasmtime --dir=. --argv0 busybox busybox.wasm echo "Hello!"
 ```
 
-### Running with Wasmer
-
-```bash
-# Install wasmer (https://wasmer.io/)
-curl https://get.wasmer.io -sSfL | sh
-
-# Run BusyBox commands
-wasmer run busybox.wasm -- echo "Hello from WASM!"
-wasmer run busybox.wasm -- ls -la
-```
+**Note:** The `--argv0` flag sets the program name (argv[0]) which BusyBox uses to determine which applet to run. The `--dir=.` grants filesystem access to the current directory.
 
 ### Running in Browser (wasi-kernel)
 
