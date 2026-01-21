@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BusyBox WASM/WASI - Browser Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 {
+            color: #00d4ff;
+            border-bottom: 2px solid #00d4ff;
+            padding-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .input-section {
+            display: flex;
+            gap: 10px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            font-family: monospace;
+            background: #16213e;
+            border: 1px solid #0f3460;
+            color: #eee;
+            border-radius: 4px;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            background: #00d4ff;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00b4d8;
+        }
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        .output {
+            background: #0d0d0d;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 15px;
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .output .command {
+            color: #00d4ff;
+        }
+        .output .stdout {
+            color: #4ade80;
+        }
+        .output .stderr {
+            color: #f87171;
+        }
+        .output .info {
+            color: #facc15;
+        }
+        .examples {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .examples button {
+            padding: 8px 16px;
+            font-size: 14px;
+            background: #16213e;
+            color: #eee;
+            border: 1px solid #0f3460;
+        }
+        .examples button:hover {
+            background: #0f3460;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .status.loading {
+            background: #facc15;
+            color: #1a1a2e;
+        }
+        .status.ready {
+            background: #4ade80;
+            color: #1a1a2e;
+        }
+        .status.error {
+            background: #f87171;
+            color: #1a1a2e;
+        }
+        .note {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #00d4ff;
+        }
+    </style>
+</head>
+<body>
+    <h1>BusyBox WASM/WASI</h1>
+
+    <div class="container">
+        <div id="status" class="status loading">Loading BusyBox WASM...</div>
+
+        <div class="note">
+            <strong>Note:</strong> This demo requires a WASI polyfill for browsers.
+            For full browser support, use <a href="https://github.com/aspect-build/aspect-js-wasi" style="color:#00d4ff">@aspect-build/aspect-js-wasi</a>
+            or <a href="https://github.com/aspect-build/aspect-js-wasi" style="color:#00d4ff">wasmer-js</a>.
+        </div>
+
+        <div>
+            <label><strong>Command:</strong></label>
+            <div class="input-section">
+                <input type="text" id="command" placeholder="Enter command (e.g., ls -la)" value="echo Hello from BusyBox WASM!">
+                <button id="runBtn" onclick="runCommand()" disabled>Run</button>
+            </div>
+        </div>
+
+        <div>
+            <label><strong>Example commands:</strong></label>
+            <div class="examples">
+                <button onclick="setCommand('echo Hello World!')">echo</button>
+                <button onclick="setCommand('ls -la')">ls -la</button>
+                <button onclick="setCommand('--list')">--list</button>
+                <button onclick="setCommand('printf \"%s\\n\" one two three')">printf</button>
+                <button onclick="setCommand('env')">env</button>
+                <button onclick="setCommand('test 1 -eq 1 && echo Equal')">test</button>
+            </div>
+        </div>
+
+        <div>
+            <label><strong>Output:</strong></label>
+            <div id="output" class="output"><span class="info">Waiting for WASM module to load...</span></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // BusyBox WASM Browser Demo
+        // This is a simplified example - for production use, integrate with a proper WASI polyfill
+
+        let wasmModule = null;
+        let wasmInstance = null;
+
+        const statusEl = document.getElementById('status');
+        const outputEl = document.getElementById('output');
+        const runBtn = document.getElementById('runBtn');
+        const commandInput = document.getElementById('command');
+
+        // Make functions available globally
+        window.setCommand = function(cmd) {
+            commandInput.value = cmd;
+        };
+
+        window.runCommand = async function() {
+            const command = commandInput.value.trim();
+            if (!command) return;
+
+            appendOutput(`$ busybox ${command}`, 'command');
+
+            // Note: This is a placeholder. Real WASI execution requires a proper polyfill.
+            // For actual browser WASI support, you would need to:
+            // 1. Use a WASI polyfill like @aspect-build/aspect-js-wasi or wasmer-js
+            // 2. Set up a virtual filesystem
+            // 3. Handle stdin/stdout/stderr
+
+            try {
+                if (!wasmModule) {
+                    appendOutput('Error: WASM module not loaded', 'stderr');
+                    return;
+                }
+
+                appendOutput('Note: Browser WASI execution requires additional polyfill setup.', 'info');
+                appendOutput('For CLI usage, run: wasmtime busybox.wasm -- ' + command, 'info');
+
+            } catch (error) {
+                appendOutput(`Error: ${error.message}`, 'stderr');
+            }
+        };
+
+        function appendOutput(text, className = 'stdout') {
+            const span = document.createElement('span');
+            span.className = className;
+            span.textContent = text + '\n';
+            outputEl.appendChild(span);
+            outputEl.scrollTop = outputEl.scrollHeight;
+        }
+
+        function clearOutput() {
+            outputEl.innerHTML = '';
+        }
+
+        // Load the WASM module
+        async function loadWasm() {
+            try {
+                const response = await fetch('../busybox.wasm');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const buffer = await response.arrayBuffer();
+                wasmModule = await WebAssembly.compile(buffer);
+
+                statusEl.className = 'status ready';
+                statusEl.textContent = `BusyBox WASM loaded (${(buffer.byteLength / 1024).toFixed(1)} KB)`;
+                runBtn.disabled = false;
+
+                clearOutput();
+                appendOutput('BusyBox WASM module loaded successfully!', 'info');
+                appendOutput('Module size: ' + (buffer.byteLength / 1024).toFixed(1) + ' KB', 'info');
+                appendOutput('', 'stdout');
+                appendOutput('Enter a command and click Run to execute.', 'info');
+                appendOutput('Note: Full execution requires WASI polyfill integration.', 'info');
+
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = 'Failed to load WASM: ' + error.message;
+                clearOutput();
+                appendOutput('Error loading busybox.wasm: ' + error.message, 'stderr');
+                appendOutput('', 'stdout');
+                appendOutput('Make sure you are serving this file from a web server.', 'info');
+                appendOutput('Example: python -m http.server 8080', 'info');
+            }
+        }
+
+        // Handle Enter key
+        commandInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !runBtn.disabled) {
+                window.runCommand();
+            }
+        });
+
+        // Load on page load
+        loadWasm();
+    </script>
+</body>
+</html>
