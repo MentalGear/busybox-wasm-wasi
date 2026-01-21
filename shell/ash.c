@@ -195,8 +195,10 @@
 # define NUM_SCRIPTS 0
 #endif
 #ifdef __wasi__
-#define __wasik__
-#define __wasik_setjmp__
+/* Disable advanced wasi-kernel features that require wasi/control.h */
+/* Only use vfork for basic WASI compatibility */
+//#define __wasik__
+//#define __wasik_setjmp__
 //#define __wasik_fork__
 #define __wasix_vfork__
 #endif
