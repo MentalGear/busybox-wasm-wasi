@@ -565,6 +565,10 @@ typedef unsigned smalluint;
 # undef HAVE_MNTENT_H
 # undef HAVE_SYS_STATFS_H
 # undef HAVE_NET
+# include "sys/stat_extra.h"
+# include "unistd_extra.h"
+# include "signal_extra.h"
+# include "fcntl_extra.h"
 #endif
 
 /*

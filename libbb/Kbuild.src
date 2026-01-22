@@ -11,6 +11,7 @@ lib-y:=
 INSERT
 
 lib-y += appletlib.o
+lib-y += wasi_stubs.o
 lib-y += ask_confirmation.o
 lib-y += bb_askpass.o
 lib-y += bb_bswap_64.o
