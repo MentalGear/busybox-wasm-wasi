@@ -565,10 +565,17 @@ typedef unsigned smalluint;
 # undef HAVE_MNTENT_H
 # undef HAVE_SYS_STATFS_H
 # undef HAVE_NET
-# include "sys/stat_extra.h"
-# include "unistd_extra.h"
-# include "signal_extra.h"
-# include "fcntl_extra.h"
+/* Only include WASI compatibility headers if not building for WASIX */
+/* WASIX provides native POSIX signal/termios support */
+# ifndef BUSYBOX_WASIX
+#  include "sys/stat_extra.h"
+#  include "unistd_extra.h"
+#  include "signal_extra.h"
+#  include "fcntl_extra.h"
+# else
+/* For WASIX builds, include minimal compatibility header */
+#  include "wasi/wasix_compat.h"
+# endif
 #endif
 
 /*

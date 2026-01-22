@@ -2,6 +2,9 @@
  *
  * These provide minimal functionality to allow busybox to compile and run
  * for basic operations. Many functions return errors or do nothing.
+ *
+ * For WASIX builds (BUSYBOX_WASIX defined), most of these functions are
+ * provided natively by the WASIX libc, so this file compiles to nearly nothing.
  */
 
 #include "libbb.h"
@@ -9,6 +12,159 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* WASIX provides most POSIX functions natively, so we skip the stubs */
+#ifdef BUSYBOX_WASIX
+
+/* Only keep minimal stubs that might not be in WASIX */
+
+/* gethostname might need a stub */
+int gethostname(char *name, size_t len)
+{
+    const char *hostname = "wasix";
+    if (len > 0) {
+        strncpy(name, hostname, len);
+        name[len - 1] = '\0';
+    }
+    return 0;
+}
+
+int sethostname(const char *name, size_t len)
+{
+    (void)name;
+    (void)len;
+    errno = EPERM;
+    return -1;
+}
+
+char *getlogin(void)
+{
+    static char login[] = "wasix";
+    return login;
+}
+
+int getlogin_r(char *buf, size_t bufsize)
+{
+    const char *login = "wasix";
+    if (bufsize > strlen(login)) {
+        strcpy(buf, login);
+        return 0;
+    }
+    return ERANGE;
+}
+
+int chroot(const char *path)
+{
+    (void)path;
+    errno = EPERM;
+    return -1;
+}
+
+int mknod(const char *pathname, mode_t mode, dev_t dev)
+{
+    (void)pathname;
+    (void)mode;
+    (void)dev;
+    errno = EPERM;
+    return -1;
+}
+
+/* Ownership functions - not available in WASIX */
+int chown(const char *pathname, uid_t owner, gid_t group)
+{
+    (void)pathname;
+    (void)owner;
+    (void)group;
+    return 0;  /* Pretend success */
+}
+
+int fchown(int fd, uid_t owner, gid_t group)
+{
+    (void)fd;
+    (void)owner;
+    (void)group;
+    return 0;
+}
+
+int lchown(const char *pathname, uid_t owner, gid_t group)
+{
+    (void)pathname;
+    (void)owner;
+    (void)group;
+    return 0;
+}
+
+int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
+{
+    (void)dirfd;
+    (void)pathname;
+    (void)owner;
+    (void)group;
+    (void)flags;
+    return 0;
+}
+
+/* readahead - just a hint, can return success */
+ssize_t readahead(int fd, off_t offset, size_t count)
+{
+    (void)fd;
+    (void)offset;
+    (void)count;
+    return 0;
+}
+
+/* Note: WASIX libc provides geteuid, getegid, setuid, setgid, seteuid, setegid
+ * We only need to provide getuid, getgid, setreuid, setregid which are not in WASIX */
+
+uid_t getuid(void)
+{
+    return 0;  /* Pretend root */
+}
+
+gid_t getgid(void)
+{
+    return 0;  /* Pretend root group */
+}
+
+int setreuid(uid_t ruid, uid_t euid)
+{
+    (void)ruid;
+    (void)euid;
+    return 0;
+}
+
+int setregid(gid_t rgid, gid_t egid)
+{
+    (void)rgid;
+    (void)egid;
+    return 0;
+}
+
+int getgroups(int size, gid_t list[])
+{
+    if (size > 0 && list) {
+        list[0] = getgid();
+        return 1;
+    }
+    return 0;
+}
+
+int fchdir(int fd)
+{
+    (void)fd;
+    errno = ENOSYS;
+    return -1;
+}
+
+int settimeofday(const struct timeval *tv, const void *tz)
+{
+    (void)tv;
+    (void)tz;
+    errno = EPERM;
+    return -1;
+}
+
+#else /* !BUSYBOX_WASIX - Plain WASI build */
 
 /* File descriptor operations */
 int dup(int oldfd)
@@ -764,3 +920,5 @@ char *mkdtemp(char *template)
     }
     return template;
 }
+
+#endif /* !BUSYBOX_WASIX */

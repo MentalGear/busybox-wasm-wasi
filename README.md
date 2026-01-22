@@ -1,12 +1,14 @@
-# BusyBox WASM/WASI
+# BusyBox WASM/WASI/WASIX
 
-A port of [BusyBox](https://busybox.net/) to WebAssembly with WASI (WebAssembly System Interface).
+A port of [BusyBox](https://busybox.net/) to WebAssembly with WASI and WASIX support.
 
 ## Overview
 
-This project provides BusyBox compiled to WebAssembly, allowing you to run common Unix utilities in any WASI-compatible runtime, including Wasmtime, and browsers (via wasi-kernel).
+This project provides BusyBox compiled to WebAssembly, allowing you to run common Unix utilities in any WASI-compatible runtime, including Wasmtime, Wasmer, and browsers (via wasi-kernel).
 
-**Pre-built binary:** `busybox.wasm` (~785KB)
+**Pre-built binaries:**
+- `busybox.wasm` (~785KB) - WASI build (wasmtime compatible, no shell)
+- `busybox-wasix.wasm` (~608KB) - WASIX build (wasmer compatible, **with shell**)
 
 ## Quick Start
 
@@ -30,6 +32,33 @@ wasmtime --dir=. --argv0 busybox busybox.wasm echo "Hello!"
 - The `--argv0` flag sets the program name (argv[0]) which BusyBox uses to determine which applet to run
 - The `--dir=.` grants filesystem access to the current directory
 - Without `--dir`, BusyBox cannot access any files
+
+### Running with Wasmer (WASIX)
+
+The WASIX build includes the `ash` shell and supports more POSIX features:
+
+```bash
+# Install wasmer (https://wasmer.io/)
+curl https://get.wasmer.io -sSfL | sh
+
+# Run BusyBox commands
+wasmer run --volume=.:/ busybox-wasix.wasm -- echo "Hello from WASIX!"
+wasmer run --volume=.:/ busybox-wasix.wasm -- ls -la
+wasmer run --volume=.:/ busybox-wasix.wasm -- date
+
+# Run the ash shell (interactive)
+wasmer run --volume=.:/ busybox-wasix.wasm -- ash
+
+# Run a shell script
+echo 'echo "Hello from shell!"' | wasmer run --volume=.:/ busybox-wasix.wasm -- ash
+```
+
+**WASIX Benefits:**
+- Includes the `ash` shell (not available in WASI build)
+- Better POSIX compatibility via WASIX extensions
+- Smaller binary size (~608KB vs ~785KB)
+
+**Note:** WASIX requires Wasmer 7.0+ for full compatibility. Earlier versions may have issues with newer WASIX syscalls.
 
 ### Running in Browser (wasi-kernel)
 
@@ -59,7 +88,7 @@ Common utilities that work in this build:
 - **Comparison:** `test`, `expr`, `cmp`
 - **Other:** `date`, `env`, `sleep`, `seq`, `tee`, `xargs`
 
-**Note:** The shell (`ash`) is disabled in this build due to setjmp/longjmp requirements that need the WebAssembly exceptions proposal.
+**Note:** The shell (`ash`) is only available in the WASIX build (`busybox-wasix.wasm`). The WASI build disables the shell due to setjmp/longjmp requirements.
 
 ## Filesystem Access
 
@@ -164,7 +193,8 @@ Due to WASI sandbox restrictions:
 
 ```
 busybox-wasm-wasi/
-├── busybox.wasm              # Pre-built WASM binary
+├── busybox.wasm              # Pre-built WASI binary (wasmtime)
+├── busybox-wasix.wasm        # Pre-built WASIX binary (wasmer, with shell)
 ├── README.md                 # This file
 ├── WASI_BUILD.md             # Build documentation
 ├── readme_original.md        # Original BusyBox README
@@ -173,44 +203,45 @@ busybox-wasm-wasi/
 │   ├── run_busybox.mjs       # Node.js WASI example
 │   └── browser.html          # Browser demo
 ├── include/wasi/
-│   ├── setjmp_stub.h         # Setjmp stubs (no exceptions)
-│   ├── signal_extra.h        # Signal definitions
-│   ├── termios.h             # Terminal I/O definitions
-│   ├── unistd_extra.h        # Additional POSIX declarations
+│   ├── setjmp_stub.h         # Setjmp stubs (WASI only)
+│   ├── wasix_compat.h        # WASIX compatibility declarations
+│   ├── signal_extra.h        # Signal definitions (WASI only)
+│   ├── termios.h             # Terminal I/O definitions (WASI only)
+│   ├── unistd_extra.h        # Additional POSIX declarations (WASI only)
 │   └── sys/                  # System header stubs
 ├── libbb/
-│   └── wasi_stubs.c          # POSIX function stubs
+│   └── wasi_stubs.c          # POSIX function stubs (conditional for WASI/WASIX)
 └── scripts/
     └── trylink               # Modified linker script
 ```
 
+## WASIX Support
+
+[WASIX](https://wasix.org/) is now supported! The `busybox-wasix.wasm` binary includes:
+- The `ash` shell with full functionality
+- Improved POSIX compatibility
+- setjmp/longjmp support (via WASIX stack switching)
+
+### Building for WASIX
+
+```bash
+# Install wasixcc
+cargo install wasixcc --features=tracing-subscriber
+
+# Download WASIX toolchain
+wasixcc --download-all
+
+# Build (creates a wrapper script for the cross-compiler)
+make CROSS_COMPILE=/path/to/wasm32-wasix- HOSTCC=gcc SKIP_STRIP=y
+```
+
+See the build configuration files for details on the WASIX-specific modifications.
+
 ## Future Work
 
-### WASIX Support
+### Potential Improvements
 
-[WASIX](https://wasix.org/) is an extended WASI specification that adds support for:
-- Full POSIX threads
-- Process forking and spawning
-- Berkeley sockets (networking)
-- Proper signal handling
-- setjmp/longjmp without exceptions
-
-Adding WASIX support would enable:
-- The `ash` shell with full functionality
-- Networking applets (`wget`, `nc`, `ping`, etc.)
-- Process control (`ps`, `kill`, etc.)
-- More complete POSIX compatibility
-
-To build with WASIX, you would need to:
-1. Use a WASIX-compatible toolchain (e.g., wasix-libc)
-2. Enable the shell and networking in `.config`
-3. Link against WASIX libraries instead of WASI emulation libraries
-
-See: https://github.com/aspect-build/aspect-js-wasi for WASIX runtime support.
-
-### Other Potential Improvements
-
-- Enable more applets as WASI/WASIX support improves
+- Enable networking applets (`wget`, `nc`, `ping`, etc.) - requires WASIX socket support
 - Add WebAssembly Component Model support
 - Optimize binary size with `wasm-opt`
 - Add automated testing in CI

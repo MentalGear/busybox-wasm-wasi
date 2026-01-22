@@ -50,8 +50,14 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#if !defined(major) && !defined(__APPLE__) || defined(__GLIBC__)
+#if !defined(major) && !defined(__APPLE__) && !defined(__wasi__) || defined(__GLIBC__)
 # include <sys/sysmacros.h>
+#endif
+/* For WASI/WASIX, define major/minor macros if not already defined */
+#if defined(__wasi__) && !defined(major)
+# define major(dev) ((unsigned int)(((dev) >> 8) & 0xff))
+# define minor(dev) ((unsigned int)((dev) & 0xff))
+# define makedev(maj, min) (((maj) << 8) | (min))
 #endif
 #include <sys/wait.h>
 #include <termios.h>
