@@ -34,7 +34,7 @@ wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
 - Use `--` to separate wasmer options from busybox arguments
 - Requires Wasmer 7.0+ for full WASIX compatibility
 
-### Running in Browser (wasmer-js)
+### Running in Browser (@wasmer/sdk)
 
 ```html
 <!DOCTYPE html>
@@ -45,7 +45,7 @@ wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
 <body>
   <pre id="output"></pre>
   <script type="module">
-    import { init, Wasmer } from 'https://unpkg.com/@aspect/wasmer-js@latest/dist/index.mjs';
+    import { init, runWasix } from 'https://unpkg.com/@wasmer/sdk@latest/dist/index.mjs';
 
     async function run() {
       await init();
@@ -53,14 +53,13 @@ wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
       const wasm = await fetch('busybox-wasix.wasm').then(r => r.arrayBuffer());
       const module = await WebAssembly.compile(wasm);
 
-      const wasmer = new Wasmer();
-      const instance = await wasmer.instantiate(module, {
+      const instance = await runWasix(module, {
+        program: 'busybox',
         args: ['ls', '-la'],
-        env: {},
-        preopens: { '/': '/' }
+        env: {}
       });
 
-      const output = await instance.run();
+      const output = await instance.wait();
       document.getElementById('output').textContent = output.stdout;
     }
 
@@ -70,7 +69,11 @@ wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
 </html>
 ```
 
-For more details, see the [wasmer-js documentation](https://github.com/aspect-sh/wasmer-js).
+**Note:** Pages using `@wasmer/sdk` require Cross-Origin Isolation headers:
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: require-corp`
+
+For more details, see the [Wasmer SDK documentation](https://docs.wasmer.io/sdk/wasmer-js/).
 
 ## Available Commands
 
@@ -295,7 +298,6 @@ All tests passed!
 - **BusyBox:** https://busybox.net/
 - **WASIX:** https://wasix.org/
 - **Wasmer:** https://wasmer.io/
-- **wasmer-js:** https://github.com/aspect-sh/wasmer-js
 
 ## License
 
@@ -305,5 +307,5 @@ BusyBox is licensed under the GNU General Public License version 2.
 
 - [WASIX Specification](https://wasix.org/)
 - [Wasmer Runtime](https://wasmer.io/)
-- [wasmer-js](https://github.com/aspect-sh/wasmer-js)
+- [Wasmer SDK (@wasmer/sdk)](https://docs.wasmer.io/sdk/wasmer-js/)
 - [WebAssembly](https://webassembly.org/)
