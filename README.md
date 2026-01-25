@@ -265,6 +265,24 @@ make CROSS_COMPILE=/path/to/wasm32-wasix- HOSTCC=gcc SKIP_STRIP=y
 mv busybox busybox-wasix.wasm
 ```
 
+### Size Optimization (Optional)
+
+Use `wasm-opt` from [Binaryen](https://github.com/WebAssembly/binaryen) to reduce binary size:
+
+```bash
+wasm-opt -Os busybox-wasix.wasm -o busybox-wasix-opt.wasm
+```
+
+| wasm-opt flag | Size | Performance |
+|---------------|------|-------------|
+| `-O` | Smaller | Same or better |
+| `-Os` | Smaller | Same |
+| `-Oz` | Smallest | Slightly slower |
+| `-O3` | Slightly larger | Faster |
+| `-O4` | Larger | Fastest |
+
+**Recommendation:** Use `-Os` for balanced size reduction without performance loss.
+
 ## Project Structure
 
 ```
