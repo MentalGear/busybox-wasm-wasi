@@ -323,6 +323,54 @@ Results: 27 passed, 0 failed
 All tests passed!
 ```
 
+## Future Work
+
+### 1. Update to Latest BusyBox Source
+
+Before adding new features, update to the latest BusyBox release to benefit from upstream fixes and improvements:
+
+```bash
+# Check current version
+git describe --tags
+
+# Merge latest upstream
+git remote add upstream https://git.busybox.net/busybox
+git fetch upstream
+git merge upstream/master
+```
+
+### 2. Networking Support
+
+Networking applets (`nc`, `wget`, `hostname`) are partially supported by WASIX but require fixes:
+
+**Status:**
+- WASIX headers support sockets (`socket()`, `connect()`, `bind()`, etc.)
+- Wasmer 7.0+ supports `--net` flag for TCP/UDP access
+- Build preparation done (`BUSYBOX_WASIX_NET` flag, `.config.network`)
+
+**Blockers:**
+- WASIX libc header bug: `S_IFIFO == S_IFSOCK` (both 0xc000) causes build errors
+- Recommend updating WASIX toolchain or patching headers before proceeding
+
+**To enable (after fixes):**
+```bash
+# Use network config
+cp .config.network .config
+
+# Build
+make CROSS_COMPILE=/path/to/wasm32-wasix- HOSTCC=gcc SKIP_STRIP=y
+
+# Run with networking
+wasmer run --net --volume .:/ busybox-wasix-network.wasm -- wget http://example.com
+```
+
+### 3. Additional Improvements
+
+- **More applets:** `awk`, `diff`, `tar`, `gzip` (size vs utility tradeoff)
+- **Browser terminal UI:** Interactive shell using `@aspect-sh/wasm-terminal`
+- **CI/CD:** GitHub Actions to run tests automatically
+- **Pre-built releases:** Versioned `.wasm` binaries on GitHub Releases
+
 ## Credits
 
 - **BusyBox:** https://busybox.net/
