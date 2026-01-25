@@ -564,7 +564,10 @@ typedef unsigned smalluint;
 #if defined(__wasi__)
 # undef HAVE_MNTENT_H
 # undef HAVE_SYS_STATFS_H
-# undef HAVE_NET
+/* For WASIX with networking, keep HAVE_NET; otherwise undef it */
+# if !defined(BUSYBOX_WASIX) || !defined(BUSYBOX_WASIX_NET)
+#  undef HAVE_NET
+# endif
 /* Only include WASI compatibility headers if not building for WASIX */
 /* WASIX provides native POSIX signal/termios support */
 # ifndef BUSYBOX_WASIX

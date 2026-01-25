@@ -698,7 +698,9 @@ struct BUG_too_small {
 	char BUG_socktype_t_too_small[(0
 			| SOCK_STREAM
 			| SOCK_DGRAM
+#ifdef SOCK_RDM
 			| SOCK_RDM
+#endif
 			| SOCK_SEQPACKET
 			| SOCK_RAW
 			) <= 127 ? 1 : -1];
