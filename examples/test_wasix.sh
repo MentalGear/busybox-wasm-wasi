@@ -27,6 +27,11 @@ run_shell() {
     "$WASMER" run -- "$BUSYBOX_WASM" sh -c "$1"
 }
 
+# Helper for shell commands with volume
+run_shell_vol() {
+    "$WASMER" run --volume "${PROJECT_DIR}:/app" -- "$BUSYBOX_WASM" sh -c "$1"
+}
+
 echo "BusyBox WASIX Test Suite"
 echo "WASM binary: $BUSYBOX_WASM"
 echo "Runtime: $WASMER ($($WASMER --version 2>/dev/null | head -1))"
@@ -136,6 +141,24 @@ check_output "shell functions" "hello from func" run_shell 'myfunc() { echo "hel
 
 # Test 22: Shell pwd
 check_output "shell pwd" "/" run_shell 'pwd'
+
+echo
+echo "=== Working Directory (cd) Tests ==="
+
+# Test 23: cd to directory and pwd
+check_output "cd absolute" "/app" run_shell_vol 'cd /app && pwd'
+
+# Test 24: cd to subdirectory
+check_output "cd subdirectory" "/app/examples" run_shell_vol 'cd /app/examples && pwd'
+
+# Test 25: cd with .. (parent directory)
+check_output "cd parent (..)" "/app" run_shell_vol 'cd /app/examples && cd .. && pwd'
+
+# Test 26: Multiple cd operations
+check_output "cd chain" "/app/include" run_shell_vol 'cd /app && cd examples && cd .. && cd include && pwd'
+
+# Test 27: cd to / and back
+check_output "cd root and back" "/app" run_shell_vol 'cd /app && cd / && cd /app && pwd'
 
 echo
 echo "=== Known Limitations ==="

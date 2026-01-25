@@ -80,15 +80,160 @@ wasi.start(instance);
 
 ## Available Commands
 
-Common utilities that work in this build:
-- **File operations:** `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `touch`, `chmod`
-- **Text processing:** `grep`, `sed`, `sort`, `uniq`, `wc`, `head`, `tail`, `tr`, `cut`
-- **Path utilities:** `basename`, `dirname`, `pwd`, `realpath`, `readlink`
-- **Output:** `echo`, `printf`, `yes`
-- **Comparison:** `test`, `expr`, `cmp`
-- **Other:** `date`, `env`, `sleep`, `seq`, `tee`, `xargs`
+### Enabled Applets (Current Build)
+
+The following 60+ applets are enabled in the current WASIX build:
+
+| Category | Applets |
+|----------|---------|
+| **Shell** | `ash`, `sh` |
+| **File Ops** | `cat`, `cp`, `ln`, `ls`, `mkdir`, `mktemp`, `mv`, `rm`, `rmdir`, `touch` |
+| **Text Processing** | `cut`, `grep`, `egrep`, `fgrep`, `head`, `sed`, `sort`, `tac`, `tail`, `tr`, `uniq`, `wc` |
+| **Path Utils** | `basename`, `dirname`, `pwd`, `readlink`, `realpath` |
+| **Output** | `echo`, `printf`, `yes`, `tee` |
+| **Comparison** | `test`, `[`, `[[`, `cmp`, `expr` |
+| **File Info** | `stat`, `chmod`, `find`, `which` |
+| **Environment** | `env`, `printenv`, `date`, `uname`, `whoami`, `tty` |
+| **Other** | `clear`, `reset`, `sleep`, `seq`, `xargs`, `true`, `false`, `readahead` |
 
 **Note:** The shell (`ash`) is only available in the WASIX build (`busybox-wasix.wasm`). The WASI build disables the shell due to setjmp/longjmp requirements.
+
+### All BusyBox Applets (Availability)
+
+Below is a comprehensive table of BusyBox applets and their availability:
+
+| Applet | Enabled | Notes |
+|--------|---------|-------|
+| **Coreutils** | | |
+| basename | ✅ | |
+| cat | ✅ | |
+| chgrp | ❌ | Requires user/group DB |
+| chmod | ✅ | |
+| chown | ❌ | Stub only (no effect) |
+| chroot | ❌ | Not supported in WASI |
+| cksum | ❌ | |
+| comm | ❌ | |
+| cp | ✅ | |
+| cut | ✅ | |
+| date | ✅ | |
+| dd | ❌ | |
+| df | ❌ | No filesystem stats in WASI |
+| dirname | ✅ | |
+| dos2unix/unix2dos | ❌ | |
+| du | ❌ | |
+| echo | ✅ | |
+| env | ✅ | |
+| expand/unexpand | ❌ | |
+| expr | ✅ | |
+| factor | ❌ | |
+| false | ✅ | |
+| fold | ❌ | |
+| head | ✅ | |
+| hostid | ❌ | |
+| id | ❌ | Requires user DB |
+| install | ❌ | |
+| link/unlink | ❌ | |
+| ln | ✅ | |
+| logname | ❌ | |
+| ls | ✅ | |
+| md5sum/sha*sum | ❌ | |
+| mkdir | ✅ | |
+| mkfifo | ❌ | Not supported in WASI |
+| mknod | ❌ | Stub only |
+| mktemp | ✅ | |
+| mv | ✅ | |
+| nice | ❌ | No process priority in WASI |
+| nl | ❌ | |
+| nohup | ❌ | |
+| nproc | ❌ | |
+| od | ❌ | |
+| paste | ❌ | |
+| printenv | ✅ | |
+| printf | ✅ | |
+| pwd | ✅ | |
+| readlink | ✅ | |
+| realpath | ✅ | |
+| rm | ✅ | |
+| rmdir | ✅ | |
+| seq | ✅ | |
+| shred | ❌ | |
+| shuf | ❌ | |
+| sleep | ✅ | |
+| sort | ✅ | |
+| split | ❌ | |
+| stat | ✅ | |
+| stty | ❌ | Limited terminal support |
+| sum | ❌ | |
+| sync | ❌ | |
+| tac | ✅ | |
+| tail | ✅ | |
+| tee | ✅ | |
+| test/[/[[ | ✅ | |
+| timeout | ❌ | No signals in WASI |
+| touch | ✅ | |
+| tr | ✅ | |
+| true | ✅ | |
+| truncate | ❌ | |
+| tsort | ❌ | |
+| tty | ✅ | |
+| uname | ✅ | |
+| uniq | ✅ | |
+| usleep | ❌ | |
+| uudecode/uuencode | ❌ | |
+| wc | ✅ | |
+| who | ❌ | |
+| whoami | ✅ | Returns stub value |
+| yes | ✅ | |
+| **Findutils** | | |
+| find | ✅ | |
+| grep/egrep/fgrep | ✅ | |
+| xargs | ✅ | |
+| which | ✅ | |
+| **Editors** | | |
+| awk | ❌ | Large, complex |
+| cmp | ✅ | |
+| diff | ❌ | |
+| ed | ❌ | |
+| patch | ❌ | |
+| sed | ✅ | |
+| vi | ❌ | Requires terminal |
+| **Shell** | | |
+| ash/sh | ✅ | WASIX only |
+| hush | ❌ | |
+| **Console Tools** | | |
+| clear | ✅ | |
+| reset | ✅ | |
+| **Archival** | | |
+| ar | ❌ | |
+| bunzip2/bzip2 | ❌ | |
+| cpio | ❌ | |
+| gunzip/gzip | ❌ | |
+| lzop | ❌ | |
+| tar | ❌ | |
+| unzip | ❌ | |
+| xz/unxz | ❌ | |
+| **Networking** | | |
+| ftpget/ftpput | ❌ | No sockets |
+| hostname | ❌ | |
+| ifconfig | ❌ | No network interfaces |
+| nc/netcat | ❌ | No sockets |
+| ping | ❌ | No raw sockets |
+| telnet | ❌ | No sockets |
+| tftp | ❌ | No sockets |
+| wget | ❌ | No sockets |
+| **Process/System** | | |
+| free | ❌ | No memory info |
+| kill | ❌ | No signals |
+| killall | ❌ | No process management |
+| pgrep/pkill | ❌ | No /proc |
+| pidof | ❌ | No /proc |
+| ps | ❌ | No /proc |
+| renice | ❌ | No priority |
+| top | ❌ | No /proc |
+| uptime | ❌ | No system info |
+| watch | ❌ | |
+
+**Legend:** ✅ = Enabled and working | ❌ = Not enabled or not supported
 
 ## Filesystem Access
 
