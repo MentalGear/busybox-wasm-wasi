@@ -2,26 +2,25 @@
 
 Interactive browser demos for BusyBox WASIX.
 
-## Status: Planned
-
-This folder will contain browser-based demos. See [Future Work](../README.md#4-browser-playground) in main README.
-
-## Planned Contents
+## Contents
 
 ### 1. Basic Example (`index.html`)
 Simple HTML page running BusyBox commands with @wasmer/sdk.
+- Text input for commands
+- Example command buttons
+- Output display
 
 ### 2. Virtual Filesystem Demo (`filesystem.html`)
 - Upload files to WASM virtual filesystem
 - Run BusyBox commands on uploaded files
-- Download results
+- Download results from virtual FS
 
 ### 3. Interactive Terminal (`terminal.html`)
-Full shell experience using:
-- [@wasmer/wasm-terminal](https://www.npmjs.com/package/@wasmer/wasm-terminal)
-- [xterm.js](https://xtermjs.org/)
-
-Based on [webassembly.sh](https://github.com/wasmerio/webassembly.sh).
+Full shell experience using xterm.js:
+- Interactive command line
+- Command history (up/down arrows)
+- Colored output
+- Ctrl+C and Ctrl+L support
 
 ## Requirements
 
@@ -45,11 +44,21 @@ class Handler(SimpleHTTPRequestHandler):
 HTTPServer(('localhost', 8080), Handler).serve_forever()
 "
 
-# Or use a tool like vite/webpack with appropriate headers
+# Then open http://localhost:8080/playground/
+```
+
+## File Structure
+
+```
+playground/
+├── README.md          # This file
+├── index.html         # Basic command runner
+├── filesystem.html    # Virtual FS demo
+└── terminal.html      # Interactive terminal
 ```
 
 ## References
 
 - [Wasmer SDK Docs](https://docs.wasmer.io/sdk/wasmer-js/)
-- [XTerm.js Tutorial](https://docs.wasmer.io/sdk/wasmer-js/tutorials/xterm-js)
-- [webassembly.sh Source](https://github.com/wasmerio/webassembly.sh)
+- [XTerm.js](https://xtermjs.org/)
+- [webassembly.sh](https://github.com/wasmerio/webassembly.sh)

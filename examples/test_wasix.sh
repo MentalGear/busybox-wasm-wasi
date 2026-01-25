@@ -161,6 +161,96 @@ check_output "cd chain" "/app/include" run_shell_vol 'cd /app && cd examples && 
 check_output "cd root and back" "/app" run_shell_vol 'cd /app && cd / && cd /app && pwd'
 
 echo
+echo "=== Environment Variable Tests ==="
+
+# Helper for running with custom env vars
+run_with_env() {
+    local env_var="$1"
+    shift
+    "$WASMER" run --env "$env_var" -- "$BUSYBOX_WASM" "$@"
+}
+
+# Test 28: Custom env var
+echo -n "Test: custom env var... "
+result=$(run_with_env "MY_VAR=hello123" sh -c 'echo $MY_VAR' 2>&1)
+if [ "$result" = "hello123" ]; then
+    echo "PASS"
+    ((PASS++)) || true
+else
+    echo "FAIL (expected: 'hello123', got: '$result')"
+    ((FAIL++)) || true
+fi
+
+# Test 29: Multiple env vars
+echo -n "Test: multiple env vars... "
+result=$("$WASMER" run --env "VAR1=foo" --env "VAR2=bar" -- "$BUSYBOX_WASM" sh -c 'echo $VAR1-$VAR2' 2>&1)
+if [ "$result" = "foo-bar" ]; then
+    echo "PASS"
+    ((PASS++)) || true
+else
+    echo "FAIL (expected: 'foo-bar', got: '$result')"
+    ((FAIL++)) || true
+fi
+
+# Test 30: Env var in printenv
+echo -n "Test: printenv... "
+result=$(run_with_env "TEST_ENV=works" printenv TEST_ENV 2>&1)
+if [ "$result" = "works" ]; then
+    echo "PASS"
+    ((PASS++)) || true
+else
+    echo "FAIL (expected: 'works', got: '$result')"
+    ((FAIL++)) || true
+fi
+
+echo
+echo "=== stdin Tests ==="
+
+# Test 31: stdin with tr
+echo -n "Test: stdin to tr... "
+result=$(echo "hello" | "$WASMER" run -- "$BUSYBOX_WASM" tr a-z A-Z 2>&1)
+if [ "$result" = "HELLO" ]; then
+    echo "PASS"
+    ((PASS++)) || true
+else
+    echo "FAIL (expected: 'HELLO', got: '$result')"
+    ((FAIL++)) || true
+fi
+
+# Test 32: stdin with cat
+echo -n "Test: stdin to cat... "
+result=$(echo "test input" | "$WASMER" run -- "$BUSYBOX_WASM" cat 2>&1)
+if [ "$result" = "test input" ]; then
+    echo "PASS"
+    ((PASS++)) || true
+else
+    echo "FAIL (expected: 'test input', got: '$result')"
+    ((FAIL++)) || true
+fi
+
+# Test 33: stdin with wc
+echo -n "Test: stdin to wc -c... "
+result=$(echo -n "12345" | "$WASMER" run -- "$BUSYBOX_WASM" wc -c 2>&1 | tr -d ' ')
+if [ "$result" = "5" ]; then
+    echo "PASS"
+    ((PASS++)) || true
+else
+    echo "FAIL (expected: '5', got: '$result')"
+    ((FAIL++)) || true
+fi
+
+# Test 34: stdin multiline with sort
+echo -n "Test: stdin multiline to sort... "
+result=$(printf "c\na\nb\n" | "$WASMER" run -- "$BUSYBOX_WASM" sort 2>&1 | tr '\n' ' ' | sed 's/ $//')
+if [ "$result" = "a b c" ]; then
+    echo "PASS"
+    ((PASS++)) || true
+else
+    echo "FAIL (expected: 'a b c', got: '$result')"
+    ((FAIL++)) || true
+fi
+
+echo
 echo "=== Known Limitations ==="
 echo "NOTE: Pipelines within shell scripts don't work in WASIX because"
 echo "fork+exec cannot find busybox applets (they're compiled into the binary)."

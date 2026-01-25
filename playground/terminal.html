@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BusyBox WASIX - Interactive Terminal</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { color: #00d9ff; }
+    .status {
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+    }
+    .status.loading { background: #1b4332; }
+    .status.ready { background: #0f4c75; }
+    .status.error { background: #7f1d1d; }
+    #terminal-container {
+      background: #000;
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 400px;
+    }
+    .info {
+      margin-top: 15px;
+      padding: 15px;
+      background: #16213e;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    .info h3 { margin-top: 0; color: #00d9ff; }
+    .info code {
+      background: #0f0f23;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    .info ul { margin: 10px 0; padding-left: 20px; }
+    .info li { margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <h1>Interactive Terminal</h1>
+
+  <div id="status" class="status loading">Loading...</div>
+
+  <div id="terminal-container"></div>
+
+  <div class="info">
+    <h3>Usage</h3>
+    <p>This is an interactive BusyBox ash shell running in WebAssembly.</p>
+    <ul>
+      <li>Type commands and press Enter to execute</li>
+      <li>Use arrow keys for command history (within session)</li>
+      <li>Try: <code>echo Hello</code>, <code>date</code>, <code>ls</code>, <code>pwd</code></li>
+    </ul>
+    <h3>Limitations</h3>
+    <ul>
+      <li>Pipelines within shell don't work (use separate commands)</li>
+      <li>No persistent filesystem between page reloads</li>
+      <li>No networking commands</li>
+    </ul>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <script type="module">
+    import { init, runWasix } from 'https://unpkg.com/@aspect-sh/wasmer-js@latest/dist/index.mjs';
+
+    const statusEl = document.getElementById('status');
+    const terminalContainer = document.getElementById('terminal-container');
+
+    let wasmModule = null;
+    let term = null;
+    let currentLine = '';
+    let commandHistory = [];
+    let historyIndex = -1;
+
+    // Initialize xterm.js terminal
+    function initTerminal() {
+      term = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
+        theme: {
+          background: '#0f0f23',
+          foreground: '#eee',
+          cursor: '#00d9ff',
+          cursorAccent: '#0f0f23',
+          selection: 'rgba(0, 217, 255, 0.3)'
+        },
+        cols: 100,
+        rows: 20
+      });
+
+      const fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(terminalContainer);
+      fitAddon.fit();
+
+      // Handle window resize
+      window.addEventListener('resize', () => fitAddon.fit());
+
+      // Handle input
+      term.onKey(({ key, domEvent }) => {
+        const ev = domEvent;
+        const printable = !ev.altKey && !ev.ctrlKey && !ev.metaKey;
+
+        if (ev.keyCode === 13) { // Enter
+          term.write('\r\n');
+          if (currentLine.trim()) {
+            commandHistory.push(currentLine);
+            historyIndex = commandHistory.length;
+            executeCommand(currentLine);
+          } else {
+            printPrompt();
+          }
+          currentLine = '';
+        } else if (ev.keyCode === 8) { // Backspace
+          if (currentLine.length > 0) {
+            currentLine = currentLine.slice(0, -1);
+            term.write('\b \b');
+          }
+        } else if (ev.keyCode === 38) { // Up arrow - history
+          if (historyIndex > 0) {
+            historyIndex--;
+            replaceCurrentLine(commandHistory[historyIndex]);
+          }
+        } else if (ev.keyCode === 40) { // Down arrow - history
+          if (historyIndex < commandHistory.length - 1) {
+            historyIndex++;
+            replaceCurrentLine(commandHistory[historyIndex]);
+          } else if (historyIndex === commandHistory.length - 1) {
+            historyIndex++;
+            replaceCurrentLine('');
+          }
+        } else if (ev.ctrlKey && ev.keyCode === 67) { // Ctrl+C
+          term.write('^C\r\n');
+          currentLine = '';
+          printPrompt();
+        } else if (ev.ctrlKey && ev.keyCode === 76) { // Ctrl+L - clear
+          term.clear();
+          printPrompt();
+        } else if (printable) {
+          currentLine += key;
+          term.write(key);
+        }
+      });
+
+      // Handle paste
+      term.onData(data => {
+        // Only handle paste (multi-character input)
+        if (data.length > 1 && !data.includes('\x1b')) {
+          currentLine += data;
+          term.write(data);
+        }
+      });
+    }
+
+    function replaceCurrentLine(newLine) {
+      // Clear current line
+      const clearLen = currentLine.length;
+      for (let i = 0; i < clearLen; i++) {
+        term.write('\b \b');
+      }
+      // Write new line
+      currentLine = newLine;
+      term.write(currentLine);
+    }
+
+    function printPrompt() {
+      term.write('\x1b[32mbusybox\x1b[0m:\x1b[34m/\x1b[0m$ ');
+    }
+
+    async function executeCommand(cmd) {
+      if (!wasmModule) {
+        term.write('Error: WASM module not loaded\r\n');
+        printPrompt();
+        return;
+      }
+
+      // Handle built-in commands
+      if (cmd === 'clear') {
+        term.clear();
+        printPrompt();
+        return;
+      }
+
+      if (cmd === 'help') {
+        term.write('BusyBox WASIX Shell - Available commands:\r\n');
+        term.write('  echo, date, pwd, ls, cat, head, tail, wc, grep, sed, tr,\r\n');
+        term.write('  sort, uniq, cut, seq, printf, basename, dirname, env,\r\n');
+        term.write('  test, expr, sleep, true, false, sh -c "..."\r\n');
+        term.write('\r\nType "clear" to clear screen, Ctrl+L also works.\r\n');
+        printPrompt();
+        return;
+      }
+
+      try {
+        // Parse command into args
+        const args = parseCommand(cmd);
+
+        const instance = await runWasix(wasmModule, {
+          program: 'busybox',
+          args: args,
+          env: {
+            'HOME': '/',
+            'PATH': '/bin',
+            'USER': 'wasix',
+            'TERM': 'xterm-256color'
+          }
+        });
+
+        const result = await instance.wait();
+
+        // Display output
+        if (result.stdout) {
+          // Convert newlines to terminal format
+          const output = result.stdout.replace(/\n/g, '\r\n');
+          term.write(output);
+          // Ensure we end with newline
+          if (!output.endsWith('\r\n')) {
+            term.write('\r\n');
+          }
+        }
+
+        if (result.stderr) {
+          term.write('\x1b[31m'); // Red for stderr
+          const errOutput = result.stderr.replace(/\n/g, '\r\n');
+          term.write(errOutput);
+          if (!errOutput.endsWith('\r\n')) {
+            term.write('\r\n');
+          }
+          term.write('\x1b[0m'); // Reset color
+        }
+
+        if (result.code !== 0 && !result.stdout && !result.stderr) {
+          term.write(`Exit code: ${result.code}\r\n`);
+        }
+      } catch (err) {
+        term.write(`\x1b[31mError: ${err.message}\x1b[0m\r\n`);
+      }
+
+      printPrompt();
+    }
+
+    // Simple command parser (handles quotes)
+    function parseCommand(cmd) {
+      const args = [];
+      let current = '';
+      let inQuote = false;
+      let quoteChar = '';
+
+      for (let i = 0; i < cmd.length; i++) {
+        const char = cmd[i];
+
+        if (inQuote) {
+          if (char === quoteChar) {
+            inQuote = false;
+          } else {
+            current += char;
+          }
+        } else if (char === '"' || char === "'") {
+          inQuote = true;
+          quoteChar = char;
+        } else if (char === ' ') {
+          if (current) {
+            args.push(current);
+            current = '';
+          }
+        } else {
+          current += char;
+        }
+      }
+
+      if (current) {
+        args.push(current);
+      }
+
+      return args;
+    }
+
+    async function initialize() {
+      try {
+        statusEl.textContent = 'Initializing terminal...';
+        initTerminal();
+
+        statusEl.textContent = 'Initializing Wasmer SDK...';
+        await init();
+
+        statusEl.textContent = 'Loading BusyBox WASM module...';
+        const response = await fetch('../busybox-wasix.wasm');
+        if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
+
+        const wasmBytes = await response.arrayBuffer();
+        wasmModule = await WebAssembly.compile(wasmBytes);
+
+        statusEl.textContent = 'Ready!';
+        statusEl.className = 'status ready';
+
+        // Print welcome message
+        term.write('\x1b[36m');
+        term.write('BusyBox WASIX Interactive Shell\r\n');
+        term.write('================================\r\n');
+        term.write('\x1b[0m');
+        term.write('Type "help" for available commands.\r\n\r\n');
+        printPrompt();
+        term.focus();
+      } catch (err) {
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.className = 'status error';
+        if (term) {
+          term.write(`\x1b[31mInitialization failed: ${err.message}\x1b[0m\r\n`);
+        }
+      }
+    }
+
+    initialize();
+  </script>
+</body>
+</html>
