@@ -238,6 +238,57 @@ wasmer run --volume .:/app --volume /tmp:/tmp busybox-wasix.wasm -- ls /
 wasmer run --volume .:/ busybox-wasix.wasm -- ls -la
 ```
 
+### Adding/Extracting Files (Virtual FS)
+
+Since networking is disabled for security, use these methods to transfer files:
+
+**CLI (Wasmer):**
+```bash
+# Add files: mount host directory containing your files
+wasmer run --volume ./input:/input --volume ./output:/output busybox-wasix.wasm -- cp /input/file.txt /output/
+
+# Extract: files written to mounted directories appear on host
+wasmer run --volume ./data:/data busybox-wasix.wasm -- sh -c 'echo "hello" > /data/output.txt'
+cat ./data/output.txt  # File is on host
+```
+
+**Browser (@wasmer/sdk):**
+```javascript
+// Add files to virtual FS before running
+const instance = await runWasix(module, {
+  program: 'busybox',
+  args: ['cat', '/input.txt'],
+  env: {},
+  mount: {
+    '/input.txt': new Uint8Array([...fileData])  // Pre-populate files
+  }
+});
+
+// Extract files from virtual FS after running
+const output = await instance.wait();
+const fileData = instance.fs.readFile('/output.txt');  // Read from virtual FS
+
+// Download to user's device
+const blob = new Blob([fileData], { type: 'application/octet-stream' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = 'output.txt';
+a.click();
+```
+
+**stdin/stdout (streaming):**
+```bash
+# Input via stdin
+echo "process this" | wasmer run busybox-wasix.wasm -- tr a-z A-Z
+
+# Output via stdout (capture in variable)
+result=$(wasmer run busybox-wasix.wasm -- date)
+
+# Binary via base64
+wasmer run --volume ./data:/data busybox-wasix.wasm -- base64 /data/file.bin > encoded.txt
+```
+
 ## Building from Source
 
 ### Prerequisites
@@ -364,12 +415,24 @@ make CROSS_COMPILE=/path/to/wasm32-wasix- HOSTCC=gcc SKIP_STRIP=y
 wasmer run --net --volume .:/ busybox-wasix-network.wasm -- wget http://example.com
 ```
 
-### 3. Additional Improvements
+### 3. Testing Improvements
+
+- **CI/CD:** GitHub Actions to run `test_wasix.sh` on every push
+- **Environment variable tests:** Test `$HOME`, `$PATH`, custom env vars
+- **stdin support tests:** Test reading from stdin in various contexts
+- **Pre-built releases:** Versioned `.wasm` binaries on GitHub Releases
+
+### 4. Browser Playground
+
+A `/playground` folder with interactive browser demos based on [webassembly.sh](https://github.com/wasmerio/webassembly.sh) and [@wasmer/wasm-terminal](https://www.npmjs.com/package/@wasmer/wasm-terminal):
+
+- **Browser example:** Working HTML page with @wasmer/sdk
+- **Virtual filesystem demo:** Upload/download files to/from WASM
+- **Interactive terminal:** Full shell experience in browser
+
+### 5. Additional Improvements
 
 - **More applets:** `awk`, `diff`, `tar`, `gzip` (size vs utility tradeoff)
-- **Browser terminal UI:** Interactive shell using `@aspect-sh/wasm-terminal`
-- **CI/CD:** GitHub Actions to run tests automatically
-- **Pre-built releases:** Versioned `.wasm` binaries on GitHub Releases
 
 ## Credits
 
