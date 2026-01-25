@@ -194,9 +194,21 @@ wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
 
 # Functions
 wasmer run busybox-wasix.wasm -- sh -c 'greet() { echo "Hello $1"; }; greet World'
+```
 
-# Working directory
-wasmer run --volume .:/ busybox-wasix.wasm -- sh -c 'cd /tmp && pwd'
+### Working Directory (cd)
+
+The `cd` command is a shell builtin (not a standalone applet). It works within shell scripts:
+
+```bash
+# Change to directory and verify with pwd
+wasmer run --volume .:/ busybox-wasix.wasm -- sh -c 'cd /app && pwd'
+
+# Navigate with relative paths
+wasmer run --volume .:/ busybox-wasix.wasm -- sh -c 'cd /app/examples && cd .. && pwd'
+
+# Chain multiple cd operations
+wasmer run --volume .:/ busybox-wasix.wasm -- sh -c 'cd /app && cd examples && cd .. && cd include && pwd'
 ```
 
 ### Known Limitation
@@ -226,6 +238,57 @@ wasmer run --volume .:/app --volume /tmp:/tmp busybox-wasix.wasm -- ls /
 wasmer run --volume .:/ busybox-wasix.wasm -- ls -la
 ```
 
+### Adding/Extracting Files (Virtual FS)
+
+Since networking is disabled for security, use these methods to transfer files:
+
+**CLI (Wasmer):**
+```bash
+# Add files: mount host directory containing your files
+wasmer run --volume ./input:/input --volume ./output:/output busybox-wasix.wasm -- cp /input/file.txt /output/
+
+# Extract: files written to mounted directories appear on host
+wasmer run --volume ./data:/data busybox-wasix.wasm -- sh -c 'echo "hello" > /data/output.txt'
+cat ./data/output.txt  # File is on host
+```
+
+**Browser (@wasmer/sdk):**
+```javascript
+// Add files to virtual FS before running
+const instance = await runWasix(module, {
+  program: 'busybox',
+  args: ['cat', '/input.txt'],
+  env: {},
+  mount: {
+    '/input.txt': new Uint8Array([...fileData])  // Pre-populate files
+  }
+});
+
+// Extract files from virtual FS after running
+const output = await instance.wait();
+const fileData = instance.fs.readFile('/output.txt');  // Read from virtual FS
+
+// Download to user's device
+const blob = new Blob([fileData], { type: 'application/octet-stream' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = 'output.txt';
+a.click();
+```
+
+**stdin/stdout (streaming):**
+```bash
+# Input via stdin
+echo "process this" | wasmer run busybox-wasix.wasm -- tr a-z A-Z
+
+# Output via stdout (capture in variable)
+result=$(wasmer run busybox-wasix.wasm -- date)
+
+# Binary via base64
+wasmer run --volume ./data:/data busybox-wasix.wasm -- base64 /data/file.bin > encoded.txt
+```
+
 ## Building from Source
 
 ### Prerequisites
@@ -252,6 +315,24 @@ make CROSS_COMPILE=/path/to/wasm32-wasix- HOSTCC=gcc SKIP_STRIP=y
 # The output is busybox (rename to busybox-wasix.wasm)
 mv busybox busybox-wasix.wasm
 ```
+
+### Size Optimization (Optional)
+
+Use `wasm-opt` from [Binaryen](https://github.com/WebAssembly/binaryen) to reduce binary size:
+
+```bash
+wasm-opt -Os busybox-wasix.wasm -o busybox-wasix-opt.wasm
+```
+
+| wasm-opt flag | Size | Performance |
+|---------------|------|-------------|
+| `-O` | Smaller | Same or better |
+| `-Os` | Smaller | Same |
+| `-Oz` | Smallest | Slightly slower |
+| `-O3` | Slightly larger | Faster |
+| `-O4` | Larger | Fastest |
+
+**Recommendation:** Use `-Os` for balanced size reduction without performance loss.
 
 ## Project Structure
 
@@ -292,6 +373,66 @@ Test: cd absolute... PASS
 Results: 27 passed, 0 failed
 All tests passed!
 ```
+
+## Future Work
+
+### 1. Update to Latest BusyBox Source
+
+Before adding new features, update to the latest BusyBox release to benefit from upstream fixes and improvements:
+
+```bash
+# Check current version
+git describe --tags
+
+# Merge latest upstream
+git remote add upstream https://git.busybox.net/busybox
+git fetch upstream
+git merge upstream/master
+```
+
+### 2. Networking Support
+
+Networking applets (`nc`, `wget`, `hostname`) are partially supported by WASIX but require fixes:
+
+**Status:**
+- WASIX headers support sockets (`socket()`, `connect()`, `bind()`, etc.)
+- Wasmer 7.0+ supports `--net` flag for TCP/UDP access
+- Build preparation done (`BUSYBOX_WASIX_NET` flag, `.config.network`)
+
+**Blockers:**
+- WASIX libc header bug: `S_IFIFO == S_IFSOCK` (both 0xc000) causes build errors
+- Recommend updating WASIX toolchain or patching headers before proceeding
+
+**To enable (after fixes):**
+```bash
+# Use network config
+cp .config.network .config
+
+# Build
+make CROSS_COMPILE=/path/to/wasm32-wasix- HOSTCC=gcc SKIP_STRIP=y
+
+# Run with networking
+wasmer run --net --volume .:/ busybox-wasix-network.wasm -- wget http://example.com
+```
+
+### 3. Testing Improvements
+
+- **CI/CD:** GitHub Actions to run `test_wasix.sh` on every push
+- **Environment variable tests:** Test `$HOME`, `$PATH`, custom env vars
+- **stdin support tests:** Test reading from stdin in various contexts
+- **Pre-built releases:** Versioned `.wasm` binaries on GitHub Releases
+
+### 4. Browser Playground
+
+A `/playground` folder with interactive browser demos based on [webassembly.sh](https://github.com/wasmerio/webassembly.sh) and [@wasmer/wasm-terminal](https://www.npmjs.com/package/@wasmer/wasm-terminal):
+
+- **Browser example:** Working HTML page with @wasmer/sdk
+- **Virtual filesystem demo:** Upload/download files to/from WASM
+- **Interactive terminal:** Full shell experience in browser
+
+### 5. Additional Improvements
+
+- **More applets:** `awk`, `diff`, `tar`, `gzip` (size vs utility tradeoff)
 
 ## Credits
 

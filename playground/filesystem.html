@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BusyBox WASIX - Virtual Filesystem Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1, h2 { color: #00d9ff; }
+    h2 { font-size: 1.2em; margin-top: 30px; }
+    .panel {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .col { flex: 1; min-width: 300px; }
+    input, textarea, button, select {
+      padding: 10px;
+      border: 1px solid #333;
+      border-radius: 5px;
+      background: #0f0f23;
+      color: #eee;
+      font-size: 14px;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    textarea {
+      font-family: monospace;
+      min-height: 150px;
+      resize: vertical;
+    }
+    button {
+      background: #0f4c75;
+      cursor: pointer;
+      border: none;
+      width: auto;
+      padding: 10px 20px;
+    }
+    button:hover { background: #1b6ca8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .file-list {
+      background: #0f0f23;
+      border-radius: 5px;
+      padding: 10px;
+      min-height: 100px;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    .file-item {
+      padding: 5px 10px;
+      border-radius: 3px;
+      margin: 3px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .file-item:hover { background: #1b4332; }
+    .file-item button {
+      padding: 3px 8px;
+      font-size: 11px;
+      margin: 0;
+      width: auto;
+    }
+    #output {
+      background: #0f0f23;
+      border-radius: 5px;
+      padding: 15px;
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      min-height: 200px;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+    }
+    .status.loading { background: #1b4332; }
+    .status.ready { background: #0f4c75; }
+    .status.error { background: #7f1d1d; }
+    label { display: block; margin-bottom: 5px; color: #aaa; }
+  </style>
+</head>
+<body>
+  <h1>Virtual Filesystem Demo</h1>
+
+  <div id="status" class="status loading">Loading...</div>
+
+  <div class="row">
+    <div class="col">
+      <div class="panel">
+        <h2>Upload Files</h2>
+        <label>File name in virtual FS:</label>
+        <input type="text" id="fileName" value="/input.txt" placeholder="/path/to/file.txt">
+
+        <label>File contents:</label>
+        <textarea id="fileContent">Hello from the virtual filesystem!
+This is line 2.
+And this is line 3.</textarea>
+
+        <button id="addFile">Add File to Virtual FS</button>
+
+        <h2>Virtual Files</h2>
+        <div id="fileList" class="file-list">No files yet</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="panel">
+        <h2>Run Command</h2>
+        <label>Command:</label>
+        <input type="text" id="command" value="cat /input.txt" placeholder="cat /input.txt">
+        <button id="run" disabled>Run Command</button>
+
+        <label>Quick commands:</label>
+        <select id="quickCmd">
+          <option value="">-- Select --</option>
+          <option value="cat /input.txt">cat /input.txt</option>
+          <option value="wc -l /input.txt">wc -l /input.txt</option>
+          <option value="head -n 2 /input.txt">head -n 2 /input.txt</option>
+          <option value="sh -c 'cat /input.txt | tr a-z A-Z > /output.txt; cat /output.txt'">uppercase to /output.txt</option>
+          <option value="ls -la /">ls -la /</option>
+        </select>
+
+        <h2>Output</h2>
+        <div id="output">Output will appear here...</div>
+
+        <h2>Download Result</h2>
+        <label>File to download:</label>
+        <input type="text" id="downloadPath" value="/output.txt" placeholder="/path/to/file">
+        <button id="download" disabled>Download from Virtual FS</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { init, runWasix } from 'https://unpkg.com/@aspect-sh/wasmer-js@latest/dist/index.mjs';
+
+    let wasmModule = null;
+    let virtualFiles = {};
+    let lastInstance = null;
+
+    const statusEl = document.getElementById('status');
+    const outputEl = document.getElementById('output');
+    const fileListEl = document.getElementById('fileList');
+    const commandEl = document.getElementById('command');
+    const runBtn = document.getElementById('run');
+    const downloadBtn = document.getElementById('download');
+
+    async function initialize() {
+      try {
+        statusEl.textContent = 'Initializing Wasmer SDK...';
+        await init();
+
+        statusEl.textContent = 'Loading BusyBox WASM module...';
+        const response = await fetch('../busybox-wasix.wasm');
+        if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
+
+        const wasmBytes = await response.arrayBuffer();
+        wasmModule = await WebAssembly.compile(wasmBytes);
+
+        statusEl.textContent = 'Ready! Add files and run commands.';
+        statusEl.className = 'status ready';
+        runBtn.disabled = false;
+      } catch (err) {
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.className = 'status error';
+      }
+    }
+
+    function updateFileList() {
+      const files = Object.keys(virtualFiles);
+      if (files.length === 0) {
+        fileListEl.innerHTML = 'No files yet';
+        return;
+      }
+
+      fileListEl.innerHTML = files.map(path => {
+        const size = virtualFiles[path].length;
+        return `<div class="file-item">
+          <span>${path} (${size} bytes)</span>
+          <button onclick="removeFile('${path}')">Remove</button>
+        </div>`;
+      }).join('');
+    }
+
+    window.removeFile = function(path) {
+      delete virtualFiles[path];
+      updateFileList();
+    };
+
+    document.getElementById('addFile').addEventListener('click', () => {
+      const path = document.getElementById('fileName').value.trim();
+      const content = document.getElementById('fileContent').value;
+
+      if (!path) {
+        alert('Please enter a file name');
+        return;
+      }
+
+      virtualFiles[path] = new TextEncoder().encode(content);
+      updateFileList();
+      outputEl.textContent = `Added file: ${path} (${virtualFiles[path].length} bytes)`;
+    });
+
+    document.getElementById('quickCmd').addEventListener('change', (e) => {
+      if (e.target.value) {
+        commandEl.value = e.target.value;
+      }
+    });
+
+    runBtn.addEventListener('click', async () => {
+      if (!wasmModule) return;
+
+      const fullCommand = commandEl.value.trim();
+      if (!fullCommand) return;
+
+      runBtn.disabled = true;
+      downloadBtn.disabled = true;
+      outputEl.textContent = `Running: ${fullCommand}\n${'─'.repeat(40)}\n`;
+
+      try {
+        const args = fullCommand.split(' ');
+
+        // Build mount object from virtualFiles
+        const mount = {};
+        for (const [path, data] of Object.entries(virtualFiles)) {
+          mount[path] = data;
+        }
+
+        const instance = await runWasix(wasmModule, {
+          program: 'busybox',
+          args: args,
+          env: { 'HOME': '/', 'PATH': '/bin' },
+          mount: mount
+        });
+
+        lastInstance = instance;
+        const result = await instance.wait();
+
+        let output = '';
+        if (result.stdout) output += result.stdout;
+        if (result.stderr) output += '\n[stderr]\n' + result.stderr;
+
+        outputEl.textContent += output || '(no output)';
+        outputEl.textContent += `\n${'─'.repeat(40)}\nExit code: ${result.code}`;
+
+        downloadBtn.disabled = false;
+      } catch (err) {
+        outputEl.textContent += `Error: ${err.message}`;
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+      const path = document.getElementById('downloadPath').value.trim();
+      if (!path || !lastInstance) return;
+
+      try {
+        const data = lastInstance.fs.readFile(path);
+        const blob = new Blob([data], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = path.split('/').pop() || 'download';
+        a.click();
+
+        URL.revokeObjectURL(url);
+        outputEl.textContent += `\n\nDownloaded: ${path}`;
+      } catch (err) {
+        outputEl.textContent += `\n\nDownload error: ${err.message}`;
+      }
+    });
+
+    initialize();
+  </script>
+</body>
+</html>

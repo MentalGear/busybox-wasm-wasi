@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BusyBox WASIX - Basic Example</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { color: #00d9ff; }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    input, select, button {
+      padding: 10px 15px;
+      border: 1px solid #333;
+      border-radius: 5px;
+      background: #16213e;
+      color: #eee;
+      font-size: 14px;
+    }
+    input { flex: 1; min-width: 200px; }
+    button {
+      background: #0f4c75;
+      cursor: pointer;
+      border: none;
+    }
+    button:hover { background: #1b6ca8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #output {
+      background: #0f0f23;
+      border: 1px solid #333;
+      border-radius: 5px;
+      padding: 15px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      min-height: 300px;
+      overflow-x: auto;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+    }
+    .status.loading { background: #1b4332; }
+    .status.ready { background: #0f4c75; }
+    .status.error { background: #7f1d1d; }
+    .examples {
+      margin-top: 20px;
+      padding: 15px;
+      background: #16213e;
+      border-radius: 5px;
+    }
+    .examples h3 { margin-top: 0; color: #00d9ff; }
+    .example-btn {
+      margin: 5px;
+      font-size: 12px;
+      padding: 8px 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>BusyBox WASIX Playground</h1>
+
+  <div id="status" class="status loading">Loading WASM module...</div>
+
+  <div class="controls">
+    <input type="text" id="command" placeholder="Enter command (e.g., ls -la)" value="echo Hello from BusyBox WASIX!">
+    <button id="run" disabled>Run</button>
+  </div>
+
+  <div id="output">Output will appear here...</div>
+
+  <div class="examples">
+    <h3>Example Commands</h3>
+    <button class="example-btn" data-cmd="echo Hello World!">echo</button>
+    <button class="example-btn" data-cmd="date">date</button>
+    <button class="example-btn" data-cmd="uname -a">uname</button>
+    <button class="example-btn" data-cmd="sh -c 'for i in 1 2 3; do echo Number: $i; done'">loop</button>
+    <button class="example-btn" data-cmd="sh -c 'echo $((2+2*10))'">math</button>
+    <button class="example-btn" data-cmd="seq 1 10">seq</button>
+    <button class="example-btn" data-cmd="printf 'Name: %s\nAge: %d\n' Alice 30">printf</button>
+    <button class="example-btn" data-cmd="env">env</button>
+  </div>
+
+  <script type="module">
+    import { init, runWasix } from 'https://unpkg.com/@aspect-sh/wasmer-js@latest/dist/index.mjs';
+
+    let wasmModule = null;
+    const statusEl = document.getElementById('status');
+    const outputEl = document.getElementById('output');
+    const commandEl = document.getElementById('command');
+    const runBtn = document.getElementById('run');
+
+    async function initialize() {
+      try {
+        statusEl.textContent = 'Initializing Wasmer SDK...';
+        await init();
+
+        statusEl.textContent = 'Loading BusyBox WASM module...';
+        const wasmUrl = '../busybox-wasix.wasm';
+        const response = await fetch(wasmUrl);
+        if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
+
+        const wasmBytes = await response.arrayBuffer();
+        wasmModule = await WebAssembly.compile(wasmBytes);
+
+        statusEl.textContent = 'Ready! Enter a command and click Run.';
+        statusEl.className = 'status ready';
+        runBtn.disabled = false;
+      } catch (err) {
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.className = 'status error';
+        outputEl.textContent = `Initialization failed:\n${err.stack || err}`;
+      }
+    }
+
+    async function runCommand() {
+      if (!wasmModule) return;
+
+      const fullCommand = commandEl.value.trim();
+      if (!fullCommand) return;
+
+      runBtn.disabled = true;
+      outputEl.textContent = `Running: ${fullCommand}\n${'─'.repeat(50)}\n`;
+
+      try {
+        // Parse command - if starts with sh -c, handle specially
+        let args;
+        if (fullCommand.startsWith('sh ') || fullCommand.startsWith('ash ')) {
+          args = fullCommand.split(' ');
+        } else {
+          // Simple space split for basic commands
+          args = fullCommand.split(' ');
+        }
+
+        const instance = await runWasix(wasmModule, {
+          program: 'busybox',
+          args: args,
+          env: {
+            'HOME': '/',
+            'PATH': '/bin',
+            'USER': 'wasix'
+          }
+        });
+
+        const result = await instance.wait();
+
+        let output = '';
+        if (result.stdout) output += result.stdout;
+        if (result.stderr) output += '\n[stderr]\n' + result.stderr;
+
+        outputEl.textContent += output || '(no output)';
+        outputEl.textContent += `\n${'─'.repeat(50)}\nExit code: ${result.code}`;
+      } catch (err) {
+        outputEl.textContent += `Error: ${err.message}\n${err.stack || ''}`;
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    // Event listeners
+    runBtn.addEventListener('click', runCommand);
+    commandEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') runCommand();
+    });
+
+    // Example buttons
+    document.querySelectorAll('.example-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        commandEl.value = btn.dataset.cmd;
+        runCommand();
+      });
+    });
+
+    // Initialize on load
+    initialize();
+  </script>
+</body>
+</html>
