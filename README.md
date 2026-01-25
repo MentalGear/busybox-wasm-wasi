@@ -194,9 +194,21 @@ wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
 
 # Functions
 wasmer run busybox-wasix.wasm -- sh -c 'greet() { echo "Hello $1"; }; greet World'
+```
 
-# Working directory
-wasmer run --volume .:/ busybox-wasix.wasm -- sh -c 'cd /tmp && pwd'
+### Working Directory (cd)
+
+The `cd` command is a shell builtin (not a standalone applet). It works within shell scripts:
+
+```bash
+# Change to directory and verify with pwd
+wasmer run --volume .:/ busybox-wasix.wasm -- sh -c 'cd /app && pwd'
+
+# Navigate with relative paths
+wasmer run --volume .:/ busybox-wasix.wasm -- sh -c 'cd /app/examples && cd .. && pwd'
+
+# Chain multiple cd operations
+wasmer run --volume .:/ busybox-wasix.wasm -- sh -c 'cd /app && cd examples && cd .. && cd include && pwd'
 ```
 
 ### Known Limitation
