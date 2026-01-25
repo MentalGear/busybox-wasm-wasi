@@ -1,88 +1,82 @@
-# BusyBox WASM/WASI/WASIX
+# BusyBox WASIX
 
-A port of [BusyBox](https://busybox.net/) to WebAssembly with WASI and WASIX support.
+A port of [BusyBox](https://busybox.net/) to WebAssembly with WASIX support, including a fully functional `ash` shell.
 
 ## Overview
 
-This project provides BusyBox compiled to WebAssembly, allowing you to run common Unix utilities in any WASI-compatible runtime, including Wasmtime, Wasmer, and browsers (via wasi-kernel).
+This project provides BusyBox compiled to WebAssembly using [WASIX](https://wasix.org/), an extended version of WASI with better POSIX compatibility. Run common Unix utilities in any WASIX-compatible runtime (Wasmer CLI or browser via wasmer-js).
 
-**Pre-built binaries:**
-- `busybox.wasm` (~785KB) - WASI build (wasmtime compatible, no shell)
-- `busybox-wasix.wasm` (~608KB) - WASIX build (wasmer compatible, **with shell**)
+**Pre-built binary:** `busybox-wasix.wasm` (~608KB)
 
 ## Quick Start
 
-### Running with Wasmtime
-
-```bash
-# Install wasmtime (https://wasmtime.dev/)
-curl https://wasmtime.dev/install.sh -sSf | bash
-
-# Run BusyBox commands using --argv0 to specify the applet name
-wasmtime --dir=. --argv0 echo busybox.wasm "Hello from WASM!"
-wasmtime --dir=. --argv0 ls busybox.wasm -la
-wasmtime --dir=. --argv0 cat busybox.wasm file.txt
-wasmtime --dir=. --argv0 date busybox.wasm
-
-# Alternative: Use busybox directly with applet as first argument
-wasmtime --dir=. --argv0 busybox busybox.wasm echo "Hello!"
-```
-
-**Important Notes:**
-- The `--argv0` flag sets the program name (argv[0]) which BusyBox uses to determine which applet to run
-- The `--dir=.` grants filesystem access to the current directory
-- Without `--dir`, BusyBox cannot access any files
-
-### Running with Wasmer (WASIX)
-
-The WASIX build includes the `ash` shell and supports more POSIX features:
+### Running with Wasmer CLI
 
 ```bash
 # Install wasmer (https://wasmer.io/)
 curl https://get.wasmer.io -sSfL | sh
 
 # Run BusyBox commands
-wasmer run --volume=.:/ busybox-wasix.wasm -- echo "Hello from WASIX!"
-wasmer run --volume=.:/ busybox-wasix.wasm -- ls -la
-wasmer run --volume=.:/ busybox-wasix.wasm -- date
+wasmer run --volume .:/ busybox-wasix.wasm -- echo "Hello from WASIX!"
+wasmer run --volume .:/ busybox-wasix.wasm -- ls -la
+wasmer run --volume .:/ busybox-wasix.wasm -- cat README.md
 
 # Run the ash shell (interactive)
-wasmer run --volume=.:/ busybox-wasix.wasm -- ash
+wasmer run --volume .:/ busybox-wasix.wasm -- ash
 
-# Run a shell script
-echo 'echo "Hello from shell!"' | wasmer run --volume=.:/ busybox-wasix.wasm -- ash
+# Run shell commands
+wasmer run busybox-wasix.wasm -- sh -c 'echo "Hello from shell!"'
+wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
 ```
 
-**WASIX Benefits:**
-- Includes the `ash` shell (not available in WASI build)
-- Better POSIX compatibility via WASIX extensions
-- Smaller binary size (~608KB vs ~785KB)
+**Notes:**
+- `--volume .:/` mounts the current directory to root in the WASM filesystem
+- Use `--` to separate wasmer options from busybox arguments
+- Requires Wasmer 7.0+ for full WASIX compatibility
 
-**Note:** WASIX requires Wasmer 7.0+ for full compatibility. Earlier versions may have issues with newer WASIX syscalls.
+### Running in Browser (wasmer-js)
 
-### Running in Browser (wasi-kernel)
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BusyBox WASIX</title>
+</head>
+<body>
+  <pre id="output"></pre>
+  <script type="module">
+    import { init, Wasmer } from 'https://unpkg.com/@aspect/wasmer-js@latest/dist/index.mjs';
 
-For browser-based execution, use [wasi-kernel](https://github.com/corwin-of-amber/wasi-kernel):
+    async function run() {
+      await init();
 
-```javascript
-import { WASI } from 'wasi-kernel';
+      const wasm = await fetch('busybox-wasix.wasm').then(r => r.arrayBuffer());
+      const module = await WebAssembly.compile(wasm);
 
-const wasi = new WASI({
-  args: ['echo', 'Hello from browser!'],  // First arg is applet name
-  env: {},
-  preopens: { '/': '/' }
-});
+      const wasmer = new Wasmer();
+      const instance = await wasmer.instantiate(module, {
+        args: ['ls', '-la'],
+        env: {},
+        preopens: { '/': '/' }
+      });
 
-const wasm = await WebAssembly.compile(await fetch('busybox.wasm').then(r => r.arrayBuffer()));
-const instance = await WebAssembly.instantiate(wasm, wasi.getImports());
-wasi.start(instance);
+      const output = await instance.run();
+      document.getElementById('output').textContent = output.stdout;
+    }
+
+    run();
+  </script>
+</body>
+</html>
 ```
+
+For more details, see the [wasmer-js documentation](https://github.com/aspect-sh/wasmer-js).
 
 ## Available Commands
 
-### Enabled Applets (Current Build)
+### Enabled Applets
 
-The following 60+ applets are enabled in the current WASIX build:
+The following 60+ applets are included:
 
 | Category | Applets |
 |----------|---------|
@@ -96,58 +90,40 @@ The following 60+ applets are enabled in the current WASIX build:
 | **Environment** | `env`, `printenv`, `date`, `uname`, `whoami`, `tty` |
 | **Other** | `clear`, `reset`, `sleep`, `seq`, `xargs`, `true`, `false`, `readahead` |
 
-**Note:** The shell (`ash`) is only available in the WASIX build (`busybox-wasix.wasm`). The WASI build disables the shell due to setjmp/longjmp requirements.
+### Full Applet Availability
 
-### All BusyBox Applets (Availability)
-
-Below is a comprehensive table of BusyBox applets and their availability:
-
-| Applet | Enabled | Notes |
-|--------|---------|-------|
+| Applet | Status | Notes |
+|--------|--------|-------|
 | **Coreutils** | | |
 | basename | ✅ | |
 | cat | ✅ | |
 | chgrp | ❌ | Requires user/group DB |
 | chmod | ✅ | |
-| chown | ❌ | Stub only (no effect) |
-| chroot | ❌ | Not supported in WASI |
+| chown | ❌ | Stub only |
+| chroot | ❌ | Not supported |
 | cksum | ❌ | |
 | comm | ❌ | |
 | cp | ✅ | |
 | cut | ✅ | |
 | date | ✅ | |
 | dd | ❌ | |
-| df | ❌ | No filesystem stats in WASI |
+| df | ❌ | No filesystem stats |
 | dirname | ✅ | |
-| dos2unix/unix2dos | ❌ | |
+| dos2unix | ❌ | |
 | du | ❌ | |
 | echo | ✅ | |
 | env | ✅ | |
-| expand/unexpand | ❌ | |
 | expr | ✅ | |
-| factor | ❌ | |
 | false | ✅ | |
-| fold | ❌ | |
 | head | ✅ | |
-| hostid | ❌ | |
 | id | ❌ | Requires user DB |
-| install | ❌ | |
-| link/unlink | ❌ | |
 | ln | ✅ | |
-| logname | ❌ | |
 | ls | ✅ | |
-| md5sum/sha*sum | ❌ | |
+| md5sum | ❌ | |
 | mkdir | ✅ | |
-| mkfifo | ❌ | Not supported in WASI |
-| mknod | ❌ | Stub only |
 | mktemp | ✅ | |
 | mv | ✅ | |
-| nice | ❌ | No process priority in WASI |
-| nl | ❌ | |
-| nohup | ❌ | |
-| nproc | ❌ | |
 | od | ❌ | |
-| paste | ❌ | |
 | printenv | ✅ | |
 | printf | ✅ | |
 | pwd | ✅ | |
@@ -156,32 +132,20 @@ Below is a comprehensive table of BusyBox applets and their availability:
 | rm | ✅ | |
 | rmdir | ✅ | |
 | seq | ✅ | |
-| shred | ❌ | |
-| shuf | ❌ | |
 | sleep | ✅ | |
 | sort | ✅ | |
-| split | ❌ | |
 | stat | ✅ | |
-| stty | ❌ | Limited terminal support |
-| sum | ❌ | |
-| sync | ❌ | |
 | tac | ✅ | |
 | tail | ✅ | |
 | tee | ✅ | |
 | test/[/[[ | ✅ | |
-| timeout | ❌ | No signals in WASI |
 | touch | ✅ | |
 | tr | ✅ | |
 | true | ✅ | |
-| truncate | ❌ | |
-| tsort | ❌ | |
 | tty | ✅ | |
 | uname | ✅ | |
 | uniq | ✅ | |
-| usleep | ❌ | |
-| uudecode/uuencode | ❌ | |
 | wc | ✅ | |
-| who | ❌ | |
 | whoami | ✅ | Returns stub value |
 | yes | ✅ | |
 | **Findutils** | | |
@@ -193,219 +157,153 @@ Below is a comprehensive table of BusyBox applets and their availability:
 | awk | ❌ | Large, complex |
 | cmp | ✅ | |
 | diff | ❌ | |
-| ed | ❌ | |
-| patch | ❌ | |
 | sed | ✅ | |
 | vi | ❌ | Requires terminal |
 | **Shell** | | |
-| ash/sh | ✅ | WASIX only |
-| hush | ❌ | |
-| **Console Tools** | | |
+| ash/sh | ✅ | Full functionality |
+| **Console** | | |
 | clear | ✅ | |
 | reset | ✅ | |
 | **Archival** | | |
-| ar | ❌ | |
-| bunzip2/bzip2 | ❌ | |
-| cpio | ❌ | |
-| gunzip/gzip | ❌ | |
-| lzop | ❌ | |
-| tar | ❌ | |
+| tar/gzip/bzip2 | ❌ | |
 | unzip | ❌ | |
-| xz/unxz | ❌ | |
 | **Networking** | | |
-| ftpget/ftpput | ❌ | No sockets |
-| hostname | ❌ | |
-| ifconfig | ❌ | No network interfaces |
-| nc/netcat | ❌ | No sockets |
-| ping | ❌ | No raw sockets |
-| telnet | ❌ | No sockets |
-| tftp | ❌ | No sockets |
-| wget | ❌ | No sockets |
-| **Process/System** | | |
-| free | ❌ | No memory info |
-| kill | ❌ | No signals |
-| killall | ❌ | No process management |
-| pgrep/pkill | ❌ | No /proc |
-| pidof | ❌ | No /proc |
-| ps | ❌ | No /proc |
-| renice | ❌ | No priority |
-| top | ❌ | No /proc |
-| uptime | ❌ | No system info |
-| watch | ❌ | |
+| wget/nc/ping | ❌ | No sockets yet |
 
-**Legend:** ✅ = Enabled and working | ❌ = Not enabled or not supported
+**Legend:** ✅ = Working | ❌ = Not available
+
+## Shell Features
+
+The `ash` shell supports:
+
+```bash
+# Variables
+wasmer run busybox-wasix.wasm -- sh -c 'NAME=World; echo "Hello $NAME"'
+
+# Arithmetic
+wasmer run busybox-wasix.wasm -- sh -c 'echo $((2 + 2))'
+
+# Conditionals
+wasmer run busybox-wasix.wasm -- sh -c 'if test 5 -gt 3; then echo yes; fi'
+
+# Loops
+wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
+
+# Functions
+wasmer run busybox-wasix.wasm -- sh -c 'greet() { echo "Hello $1"; }; greet World'
+
+# Working directory
+wasmer run --volume .:/ busybox-wasix.wasm -- sh -c 'cd /tmp && pwd'
+```
+
+### Known Limitation
+
+Pipelines within shell scripts don't work because fork+exec cannot find busybox applets (they're compiled into the single binary). Use host-side pipes instead:
+
+```bash
+# This works (host-side pipe):
+echo "hello" | wasmer run busybox-wasix.wasm -- tr a-z A-Z
+
+# This doesn't work (shell-internal pipe):
+wasmer run busybox-wasix.wasm -- sh -c 'echo hello | tr a-z A-Z'
+```
 
 ## Filesystem Access
 
-WASI requires explicit filesystem permissions:
+Mount host directories using `--volume`:
 
 ```bash
-# Grant access to current directory
-wasmtime --dir=. --argv0 ls busybox.wasm -la
+# Mount current directory to /app
+wasmer run --volume .:/app busybox-wasix.wasm -- ls /app
 
-# Grant access to multiple directories
-wasmtime --dir=. --dir=/tmp --argv0 cp busybox.wasm file.txt /tmp/
+# Mount multiple directories
+wasmer run --volume .:/app --volume /tmp:/tmp busybox-wasix.wasm -- ls /
 
-# Map host directory to guest path
-wasmtime --dir=/home/user::/ --argv0 ls busybox.wasm /
-```
-
-## Examples
-
-```bash
-# List files
-wasmtime --dir=. --argv0 ls busybox.wasm -la
-
-# Read a file
-wasmtime --dir=. --argv0 cat busybox.wasm README.md
-
-# Show date
-wasmtime --dir=. --argv0 date busybox.wasm
-
-# Text processing
-wasmtime --dir=. --argv0 grep busybox.wasm "pattern" file.txt
-
-# Path manipulation
-wasmtime --dir=. --argv0 basename busybox.wasm /path/to/file.txt
-wasmtime --dir=. --argv0 dirname busybox.wasm /path/to/file.txt
+# Mount as root
+wasmer run --volume .:/ busybox-wasix.wasm -- ls -la
 ```
 
 ## Building from Source
 
 ### Prerequisites
 
-- WASI SDK 24+ (https://github.com/WebAssembly/wasi-sdk)
+- [wasixcc](https://github.com/aspect-build/wasixcc) - WASIX C compiler
 - GCC (for host tools)
 - Make
 
 ### Build Steps
 
 ```bash
-# Download and extract WASI SDK
-export WASI_SDK_VERSION=24
-wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION}.0-x86_64-linux.tar.gz
-tar xzf wasi-sdk-${WASI_SDK_VERSION}.0-x86_64-linux.tar.gz
-export WASI_SDK=$(pwd)/wasi-sdk-${WASI_SDK_VERSION}.0
+# Install wasixcc
+cargo install wasixcc --features=tracing-subscriber
+wasixcc --download-all
 
-# Create toolchain symlinks
-mkdir -p /tmp/wasi-toolchain
-ln -sf ${WASI_SDK}/bin/clang /tmp/wasi-toolchain/wasm32-wasi-gcc
-ln -sf ${WASI_SDK}/bin/llvm-ar /tmp/wasi-toolchain/wasm32-wasi-ar
+# Configure BusyBox
+make defconfig
+# Enable ash shell and desired applets in menuconfig
+make menuconfig
 
-# Build BusyBox
-make CROSS_COMPILE=/tmp/wasi-toolchain/wasm32-wasi- HOSTCC=gcc SKIP_STRIP=y
+# Build
+make CROSS_COMPILE=/path/to/wasm32-wasix- HOSTCC=gcc SKIP_STRIP=y
+
+# The output is busybox (rename to busybox-wasix.wasm)
+mv busybox busybox-wasix.wasm
 ```
-
-See [WASI_BUILD.md](WASI_BUILD.md) for detailed build documentation.
-
-## Implementation Details
-
-### WASI Compatibility Layer
-
-This build includes custom stubs for POSIX functions not available in WASI:
-
-- **`libbb/wasi_stubs.c`** - Stub implementations for ~50 POSIX functions:
-  - Process management (`fork`, `exec`, `wait`, `getpid`, `getuid`, etc.)
-  - Signal handling (`signal`, `sigaction`, `kill`, `raise`, etc.)
-  - Terminal I/O (`tcgetattr`, `tcsetattr`, termios functions)
-  - Resource limits (`getrlimit`, `setrlimit`, `getrusage`)
-  - Temporary files (`mkstemp`, `mkdtemp`, etc.)
-
-- **`include/wasi/setjmp_stub.h`** - Stub setjmp/longjmp that bypasses the WebAssembly exceptions proposal requirement
-
-- **`scripts/trylink`** - Modified to force-link libbb with `--whole-archive` ensuring the main function is included
-
-### Build Configuration
-
-Key `.config` settings for WASI:
-```
-CONFIG_EXTRA_CFLAGS="-include include/wasi/setjmp_stub.h -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_MMAN -Iinclude/wasi"
-CONFIG_EXTRA_LDFLAGS="-Wl,-allow-undefined"
-CONFIG_EXTRA_LDLIBS="-lwasi-emulated-signal -lwasi-emulated-mman -lwasi-emulated-process-clocks -lwasi-emulated-getpid"
-```
-
-## Limitations
-
-Due to WASI sandbox restrictions:
-- **No shell:** `ash` is disabled (requires setjmp with exceptions proposal)
-- **No networking:** Socket operations are not available
-- **No process spawning:** `fork()` and `exec()` return errors
-- **No real signals:** Signal handlers are stored but never invoked
-- **Filesystem sandbox:** Only pre-opened directories are accessible
-- **Stub functions:** Many syscalls return success but don't actually do anything (e.g., `chown`, `chmod` in some cases)
 
 ## Project Structure
 
 ```
-busybox-wasm-wasi/
-├── busybox.wasm              # Pre-built WASI binary (wasmtime)
-├── busybox-wasix.wasm        # Pre-built WASIX binary (wasmer, with shell)
-├── README.md                 # This file
-├── WASI_BUILD.md             # Build documentation
-├── readme_original.md        # Original BusyBox README
+busybox-wasix/
+├── busybox-wasix.wasm    # Pre-built WASIX binary
+├── README.md             # This file
 ├── examples/
-│   ├── test_busybox.sh       # Test script for wasmtime
-│   ├── run_busybox.mjs       # Node.js WASI example
-│   └── browser.html          # Browser demo
+│   └── test_wasix.sh     # Test suite (27 passing tests)
 ├── include/wasi/
-│   ├── setjmp_stub.h         # Setjmp stubs (WASI only)
-│   ├── wasix_compat.h        # WASIX compatibility declarations
-│   ├── signal_extra.h        # Signal definitions (WASI only)
-│   ├── termios.h             # Terminal I/O definitions (WASI only)
-│   ├── unistd_extra.h        # Additional POSIX declarations (WASI only)
-│   └── sys/                  # System header stubs
-├── libbb/
-│   └── wasi_stubs.c          # POSIX function stubs (conditional for WASI/WASIX)
-└── scripts/
-    └── trylink               # Modified linker script
+│   └── wasix_compat.h    # WASIX compatibility declarations
+└── libbb/
+    └── wasi_stubs.c      # POSIX function stubs
 ```
 
-## WASIX Support
-
-[WASIX](https://wasix.org/) is now supported! The `busybox-wasix.wasm` binary includes:
-- The `ash` shell with full functionality
-- Improved POSIX compatibility
-- setjmp/longjmp support (via WASIX stack switching)
-
-### Building for WASIX
+## Running Tests
 
 ```bash
-# Install wasixcc
-cargo install wasixcc --features=tracing-subscriber
-
-# Download WASIX toolchain
-wasixcc --download-all
-
-# Build (creates a wrapper script for the cross-compiler)
-make CROSS_COMPILE=/path/to/wasm32-wasix- HOSTCC=gcc SKIP_STRIP=y
+./examples/test_wasix.sh
 ```
 
-See the build configuration files for details on the WASIX-specific modifications.
-
-## Future Work
-
-### Potential Improvements
-
-- Enable networking applets (`wget`, `nc`, `ping`, etc.) - requires WASIX socket support
-- Add WebAssembly Component Model support
-- Optimize binary size with `wasm-opt`
-- Add automated testing in CI
+Output:
+```
+BusyBox WASIX Test Suite
+==========================================
+=== Core Applet Tests ===
+Test: echo... PASS
+Test: ls... PASS
+...
+=== Shell (ash) Tests ===
+Test: shell echo... PASS
+Test: shell variables... PASS
+...
+=== Working Directory (cd) Tests ===
+Test: cd absolute... PASS
+...
+==========================================
+Results: 27 passed, 0 failed
+All tests passed!
+```
 
 ## Credits
 
 - **BusyBox:** https://busybox.net/
-- **WASI Port:** [Shachar Itzhaky (corwin-of-amber)](https://github.com/corwin-of-amber)
-- **wasi-kernel:** https://github.com/corwin-of-amber/wasi-kernel
-- **WASI SDK:** https://github.com/WebAssembly/wasi-sdk
+- **WASIX:** https://wasix.org/
+- **Wasmer:** https://wasmer.io/
+- **wasmer-js:** https://github.com/aspect-sh/wasmer-js
 
 ## License
 
-BusyBox is licensed under the GNU General Public License version 2. See the original license in the source files.
+BusyBox is licensed under the GNU General Public License version 2.
 
 ## References
 
-- [WASI Specification](https://wasi.dev/)
 - [WASIX Specification](https://wasix.org/)
-- [Wasmtime Runtime](https://wasmtime.dev/)
 - [Wasmer Runtime](https://wasmer.io/)
+- [wasmer-js](https://github.com/aspect-sh/wasmer-js)
 - [WebAssembly](https://webassembly.org/)

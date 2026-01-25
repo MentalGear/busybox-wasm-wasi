@@ -1,9 +1,0 @@
-{
-    "shell/ash.o": {
-        "args": ["-fblocks", "-Wno-shadow"]
-    },
-    "busybox_unstripped": {
-        "output": "busybox.wasm",
-        "args": ["-Wl,-allow-undefined", "-Wl,--export-table"]
-    }
-}
