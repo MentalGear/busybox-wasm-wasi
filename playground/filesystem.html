@@ -148,9 +148,9 @@ And this is line 3.</textarea>
   </div>
 
   <script type="module">
-    import { init, runWasix } from 'https://unpkg.com/@aspect-sh/wasmer-js@latest/dist/index.mjs';
+    import { init, Wasmer } from 'https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs';
 
-    let wasmModule = null;
+    let wasmBytes = null;
     let virtualFiles = {};
     let lastInstance = null;
 
@@ -170,8 +170,7 @@ And this is line 3.</textarea>
         const response = await fetch('../busybox-wasix.wasm');
         if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
 
-        const wasmBytes = await response.arrayBuffer();
-        wasmModule = await WebAssembly.compile(wasmBytes);
+        wasmBytes = new Uint8Array(await response.arrayBuffer());
 
         statusEl.textContent = 'Ready! Add files and run commands.';
         statusEl.className = 'status ready';
@@ -224,7 +223,7 @@ And this is line 3.</textarea>
     });
 
     runBtn.addEventListener('click', async () => {
-      if (!wasmModule) return;
+      if (!wasmBytes) return;
 
       const fullCommand = commandEl.value.trim();
       if (!fullCommand) return;
@@ -234,7 +233,7 @@ And this is line 3.</textarea>
       outputEl.textContent = `Running: ${fullCommand}\n${'─'.repeat(40)}\n`;
 
       try {
-        const args = fullCommand.split(' ');
+        const args = parseCommand(fullCommand);
 
         // Build mount object from virtualFiles
         const mount = {};
@@ -242,9 +241,9 @@ And this is line 3.</textarea>
           mount[path] = data;
         }
 
-        const instance = await runWasix(wasmModule, {
-          program: 'busybox',
-          args: args,
+        const pkg = await Wasmer.fromFile(wasmBytes);
+        const instance = await pkg.entrypoint.run({
+          args: ['busybox', ...args],
           env: { 'HOME': '/', 'PATH': '/bin' },
           mount: mount
         });
@@ -266,6 +265,37 @@ And this is line 3.</textarea>
         runBtn.disabled = false;
       }
     });
+
+    // Parse command handling quotes
+    function parseCommand(cmd) {
+      const args = [];
+      let current = '';
+      let inQuote = false;
+      let quoteChar = '';
+
+      for (let i = 0; i < cmd.length; i++) {
+        const char = cmd[i];
+        if (inQuote) {
+          if (char === quoteChar) {
+            inQuote = false;
+          } else {
+            current += char;
+          }
+        } else if (char === '"' || char === "'") {
+          inQuote = true;
+          quoteChar = char;
+        } else if (char === ' ') {
+          if (current) {
+            args.push(current);
+            current = '';
+          }
+        } else {
+          current += char;
+        }
+      }
+      if (current) args.push(current);
+      return args;
+    }
 
     downloadBtn.addEventListener('click', async () => {
       const path = document.getElementById('downloadPath').value.trim();

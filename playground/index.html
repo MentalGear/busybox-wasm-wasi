@@ -95,9 +95,9 @@
   </div>
 
   <script type="module">
-    import { init, runWasix } from 'https://unpkg.com/@aspect-sh/wasmer-js@latest/dist/index.mjs';
+    import { init, Wasmer } from 'https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs';
 
-    let wasmModule = null;
+    let wasmBytes = null;
     const statusEl = document.getElementById('status');
     const outputEl = document.getElementById('output');
     const commandEl = document.getElementById('command');
@@ -113,8 +113,7 @@
         const response = await fetch(wasmUrl);
         if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
 
-        const wasmBytes = await response.arrayBuffer();
-        wasmModule = await WebAssembly.compile(wasmBytes);
+        wasmBytes = new Uint8Array(await response.arrayBuffer());
 
         statusEl.textContent = 'Ready! Enter a command and click Run.';
         statusEl.className = 'status ready';
@@ -127,7 +126,7 @@
     }
 
     async function runCommand() {
-      if (!wasmModule) return;
+      if (!wasmBytes) return;
 
       const fullCommand = commandEl.value.trim();
       if (!fullCommand) return;
@@ -136,18 +135,13 @@
       outputEl.textContent = `Running: ${fullCommand}\n${'─'.repeat(50)}\n`;
 
       try {
-        // Parse command - if starts with sh -c, handle specially
-        let args;
-        if (fullCommand.startsWith('sh ') || fullCommand.startsWith('ash ')) {
-          args = fullCommand.split(' ');
-        } else {
-          // Simple space split for basic commands
-          args = fullCommand.split(' ');
-        }
+        // Parse command - handle quoted strings properly
+        const args = parseCommand(fullCommand);
 
-        const instance = await runWasix(wasmModule, {
-          program: 'busybox',
-          args: args,
+        // Use Wasmer.fromFile to load the module fresh each time
+        const pkg = await Wasmer.fromFile(wasmBytes);
+        const instance = await pkg.entrypoint.run({
+          args: ['busybox', ...args],
           env: {
             'HOME': '/',
             'PATH': '/bin',
@@ -168,6 +162,37 @@
       } finally {
         runBtn.disabled = false;
       }
+    }
+
+    // Parse command handling quotes
+    function parseCommand(cmd) {
+      const args = [];
+      let current = '';
+      let inQuote = false;
+      let quoteChar = '';
+
+      for (let i = 0; i < cmd.length; i++) {
+        const char = cmd[i];
+        if (inQuote) {
+          if (char === quoteChar) {
+            inQuote = false;
+          } else {
+            current += char;
+          }
+        } else if (char === '"' || char === "'") {
+          inQuote = true;
+          quoteChar = char;
+        } else if (char === ' ') {
+          if (current) {
+            args.push(current);
+            current = '';
+          }
+        } else {
+          current += char;
+        }
+      }
+      if (current) args.push(current);
+      return args;
     }
 
     // Event listeners

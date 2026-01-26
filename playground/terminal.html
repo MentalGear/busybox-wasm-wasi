@@ -74,12 +74,12 @@
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
   <script type="module">
-    import { init, runWasix } from 'https://unpkg.com/@aspect-sh/wasmer-js@latest/dist/index.mjs';
+    import { init, Wasmer } from 'https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs';
 
     const statusEl = document.getElementById('status');
     const terminalContainer = document.getElementById('terminal-container');
 
-    let wasmModule = null;
+    let wasmBytes = null;
     let term = null;
     let currentLine = '';
     let commandHistory = [];
@@ -182,7 +182,7 @@
     }
 
     async function executeCommand(cmd) {
-      if (!wasmModule) {
+      if (!wasmBytes) {
         term.write('Error: WASM module not loaded\r\n');
         printPrompt();
         return;
@@ -209,9 +209,9 @@
         // Parse command into args
         const args = parseCommand(cmd);
 
-        const instance = await runWasix(wasmModule, {
-          program: 'busybox',
-          args: args,
+        const pkg = await Wasmer.fromFile(wasmBytes);
+        const instance = await pkg.entrypoint.run({
+          args: ['busybox', ...args],
           env: {
             'HOME': '/',
             'PATH': '/bin',
@@ -301,8 +301,7 @@
         const response = await fetch('../busybox-wasix.wasm');
         if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
 
-        const wasmBytes = await response.arrayBuffer();
-        wasmModule = await WebAssembly.compile(wasmBytes);
+        wasmBytes = new Uint8Array(await response.arrayBuffer());
 
         statusEl.textContent = 'Ready!';
         statusEl.className = 'status ready';
