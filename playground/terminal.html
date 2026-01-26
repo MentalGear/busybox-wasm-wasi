@@ -294,6 +294,18 @@
         statusEl.textContent = 'Initializing terminal...';
         initTerminal();
 
+        // Check for Cross-Origin Isolation (required for SharedArrayBuffer)
+        if (!crossOriginIsolated) {
+          statusEl.textContent = 'Error: Cross-Origin Isolation required';
+          statusEl.className = 'status error';
+          term.write('\x1b[31mCross-Origin Isolation required.\x1b[0m\r\n\r\n');
+          term.write('The Wasmer SDK needs these HTTP headers:\r\n');
+          term.write('  Cross-Origin-Opener-Policy: same-origin\r\n');
+          term.write('  Cross-Origin-Embedder-Policy: require-corp\r\n\r\n');
+          term.write('See playground/README.md for server setup.\r\n');
+          return;
+        }
+
         statusEl.textContent = 'Initializing Wasmer SDK...';
         await init();
 

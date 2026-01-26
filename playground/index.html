@@ -105,6 +105,17 @@
 
     async function initialize() {
       try {
+        // Check for Cross-Origin Isolation (required for SharedArrayBuffer)
+        if (!crossOriginIsolated) {
+          throw new Error(
+            'Cross-Origin Isolation required.\n\n' +
+            'The Wasmer SDK needs these HTTP headers:\n' +
+            '  Cross-Origin-Opener-Policy: same-origin\n' +
+            '  Cross-Origin-Embedder-Policy: require-corp\n\n' +
+            'Start a local server with headers. See playground/README.md'
+          );
+        }
+
         statusEl.textContent = 'Initializing Wasmer SDK...';
         await init();
 
@@ -119,9 +130,9 @@
         statusEl.className = 'status ready';
         runBtn.disabled = false;
       } catch (err) {
-        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.textContent = `Error: ${err.message.split('\n')[0]}`;
         statusEl.className = 'status error';
-        outputEl.textContent = `Initialization failed:\n${err.stack || err}`;
+        outputEl.textContent = `Initialization failed:\n\n${err.message}`;
       }
     }
 
