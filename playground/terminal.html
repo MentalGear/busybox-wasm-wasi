@@ -209,9 +209,12 @@
         // Parse command into args
         const args = parseCommand(cmd);
 
-        const pkg = await Wasmer.fromFile(wasmBytes);
-        const instance = await pkg.entrypoint.run({
-          args: ['busybox', ...args],
+        // Load WASM and run with correct argv[0]
+        // BusyBox needs argv[0]='busybox' to dispatch to applets
+        const module = await WebAssembly.compile(wasmBytes);
+        const instance = await Wasmer.spawn(module, {
+          program: 'busybox',
+          args: args,
           env: {
             'HOME': '/',
             'PATH': '/bin',
