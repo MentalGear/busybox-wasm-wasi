@@ -74,6 +74,7 @@
   <h1>BusyBox WASIX Playground</h1>
 
   <div id="status" class="status loading">Loading WASM module...</div>
+  <div id="isolation-status" class="status" style="font-size: 0.8em; opacity: 0.8;">Checking isolation...</div>
 
   <div class="controls">
     <input type="text" id="command" placeholder="Enter command (e.g., ls -la)" value="echo Hello from BusyBox WASIX!">
@@ -95,7 +96,8 @@
   </div>
 
   <script type="module">
-    import { init, runWasix } from 'https://unpkg.com/@aspect-sh/wasmer-js@latest/dist/index.mjs';
+    // Must be loaded from esm to work, not unpkg
+    import { init, runWasix } from 'https://esm.sh/@wasmer/sdk@0.9.0';
 
     let wasmModule = null;
     const statusEl = document.getElementById('status');
@@ -104,6 +106,15 @@
     const runBtn = document.getElementById('run');
 
     async function initialize() {
+      const isolationEl = document.getElementById('isolation-status');
+      if (window.crossOriginIsolated) {
+        isolationEl.textContent = '✅ Cross-Origin Isolated (SharedArrayBuffer available)';
+        isolationEl.style.color = '#4ade80';
+      } else {
+        isolationEl.textContent = '❌ NOT Cross-Origin Isolated (SharedArrayBuffer unavailable)';
+        isolationEl.style.color = '#ef4444';
+      }
+
       try {
         statusEl.textContent = 'Initializing Wasmer SDK...';
         await init();

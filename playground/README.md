@@ -2,6 +2,18 @@
 
 Interactive browser demos for BusyBox WASIX.
 
+## Current State
+
+No panics in sdk 9.0 but direct exit code: 1
+*   **SDK Version**: Downgraded to `@wasmer/sdk@0.9.0` (via `esm.sh`) to resolve "Not able to serialize module" panics observed in `0.10.0+`.
+*   **WASM Loading**: Using `WebAssembly.compile()` to pass the compiled `Module` object to `runWasix`.
+*   **Server**: Using `bun server.ts` (Port 3000) to reliably serve required security headers.
+*   **Headers**:
+    *   `Cross-Origin-Opener-Policy: same-origin`
+    *   `Cross-Origin-Embedder-Policy: require-corp`
+*   **Status**: `window.crossOriginIsolated` is confirmed `true`.
+
+
 ## Contents
 
 ### 1. Basic Example (`index.html`)
@@ -33,17 +45,10 @@ Cross-Origin-Embedder-Policy: require-corp
 ## Local Development
 
 ```bash
-# Simple server with required headers (Python)
-python3 -c "
-from http.server import HTTPServer, SimpleHTTPRequestHandler
-class Handler(SimpleHTTPRequestHandler):
-    def end_headers(self):
-        self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
-        self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
-        super().end_headers()
-HTTPServer(('localhost', 8080), Handler).serve_forever()
-"
-
+# run from root, not /playground, as that way:
+# serve.json sets the right CORS headers
+# .wasm file in the root can also be served
+npx serve
 # Then open http://localhost:8080/playground/
 ```
 
