@@ -148,7 +148,7 @@ And this is line 3.</textarea>
   </div>
 
   <script type="module">
-    import { init, Wasmer } from 'https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs';
+    import { init, runWasix } from 'https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs';
 
     let wasmBytes = null;
     let virtualFiles = {};
@@ -253,11 +253,9 @@ And this is line 3.</textarea>
           mount[path] = data;
         }
 
-        // Load WASM and run with correct argv[0]
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await Wasmer.spawn(module, {
-          program: 'busybox',
-          args: args,
+        // Run WASIX module with virtual files mounted
+        const instance = await runWasix(wasmBytes, {
+          args: ['busybox', ...args],
           env: { 'HOME': '/', 'PATH': '/bin' },
           mount: mount
         });

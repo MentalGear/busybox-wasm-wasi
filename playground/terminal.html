@@ -74,7 +74,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
   <script type="module">
-    import { init, Wasmer } from 'https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs';
+    import { init, runWasix } from 'https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs';
 
     const statusEl = document.getElementById('status');
     const terminalContainer = document.getElementById('terminal-container');
@@ -209,12 +209,10 @@
         // Parse command into args
         const args = parseCommand(cmd);
 
-        // Load WASM and run with correct argv[0]
-        // BusyBox needs argv[0]='busybox' to dispatch to applets
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await Wasmer.spawn(module, {
-          program: 'busybox',
-          args: args,
+        // Run WASIX module
+        // First arg becomes argv[0], so prepend 'busybox' for multicall dispatch
+        const instance = await runWasix(wasmBytes, {
+          args: ['busybox', ...args],
           env: {
             'HOME': '/',
             'PATH': '/bin',
