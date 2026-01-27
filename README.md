@@ -8,7 +8,7 @@ In-browser Testing: Playground running Busyshell wasm with Wasmer encounters an 
 
 ### Reproduction
 1. `bun server`
-2. Open the playground/index.html file
+2. Open the `playground/index.html` file in browser
 3. Run any of the commands
 4. open the dev console: there will be a rust unwrap panic serialization error
 
