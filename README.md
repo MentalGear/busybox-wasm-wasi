@@ -2,6 +2,16 @@
 
 A port of [BusyBox](https://busybox.net/) to WebAssembly with WASIX support, including a fully functional `ash` shell.
 
+## Current Issue
+
+In-browser Testing: Playground running Busyshell wasm with Wasmer encounters an serialization error.
+
+### Reproduction
+1. `bun server`
+2. Open the playground/index.html file
+3. Run any of the commands
+4. open the dev console: there will be a rust unwrap panic serialization error
+
 ## Overview
 
 This project provides BusyBox compiled to WebAssembly using [WASIX](https://wasix.org/), an extended version of WASI with better POSIX compatibility. Run common Unix utilities in any WASIX-compatible runtime (Wasmer CLI or browser via wasmer-js).

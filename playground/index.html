@@ -95,7 +95,9 @@
   </div>
 
   <script type="module">
-    import { init, runWasix } from 'https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs';
+    // import { init, runWasix } from 'https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs';
+    import { init, runWasix } from 'https://esm.sh/@wasmer/sdk@0.10.0';
+
 
     let wasmBytes = null;
     const statusEl = document.getElementById('status');
