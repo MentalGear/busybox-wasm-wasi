@@ -62,3 +62,20 @@ playground/
 - [Wasmer SDK Docs](https://docs.wasmer.io/sdk/wasmer-js/)
 - [XTerm.js](https://xtermjs.org/)
 - [webassembly.sh](https://github.com/wasmerio/webassembly.sh)
+
+## Known Issues
+
+### "Not able to serialize module" Error
+
+The Wasmer SDK may fail with this error in some browsers. This occurs because:
+
+1. The SDK uses Web Workers for WASM execution
+2. Workers require module serialization via `postMessage()`
+3. Some browsers/modules don't support `WebAssembly.Module` serialization
+
+**Workarounds being investigated:**
+- Publishing to Wasmer Registry (registry packages may work differently)
+- Finding SDK configuration to disable workers
+- Alternative WASIX runtimes
+
+**Note:** Basic WASI shims (like `browser_wasi_shim`) won't work because our BusyBox build requires WASIX extensions (`wasix_32v1.*` imports like `proc_fork`, `fd_pipe`, `chdir`).
