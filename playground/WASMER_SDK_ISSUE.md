@@ -2,7 +2,7 @@
 
 ## Environment
 
-- `@wasmer/sdk` version: 0.10.0
+- `@wasmer/sdk` version: 0.10.0 (regression from 0.9.0)
 - Browser: Chrome 131, Firefox 133
 - Platform: Linux/macOS
 
@@ -21,6 +21,15 @@ Followed by:
 RuntimeError: unreachable
     at wasmer_js_bg.wasm:0x417b11
 ```
+
+## Version Comparison
+
+| Version | Behavior |
+|---------|----------|
+| 0.9.0 | No panic, but `exit code: 1` with no output (args issue?) |
+| 0.10.0 | Panics with "Not able to serialize module" |
+
+This appears to be a **regression in 0.10.0**.
 
 ## Steps to Reproduce
 
