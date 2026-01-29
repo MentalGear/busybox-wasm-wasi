@@ -36,6 +36,8 @@ wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
 
 ### Running in Browser (@wasmer/sdk)
 
+#### Wasmer 6 / SDK 0.6.x (Recommended for current SDK)
+
 ```html
 <!DOCTYPE html>
 <html>
@@ -45,7 +47,8 @@ wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
 <body>
   <pre id="output"></pre>
   <script type="module">
-    import { init, runWasix } from 'https://unpkg.com/@wasmer/sdk@latest/dist/index.mjs';
+    // Wasmer SDK 0.6.x - current stable version
+    import { init, runWasix } from 'https://unpkg.com/@wasmer/sdk@0.6.0/dist/index.mjs';
 
     async function run() {
       await init();
@@ -69,7 +72,16 @@ wasmer run busybox-wasix.wasm -- sh -c 'for i in 1 2 3; do echo $i; done'
 </html>
 ```
 
-**Note:** Pages using `@wasmer/sdk` require Cross-Origin Isolation headers:
+#### SDK Version Compatibility
+
+| SDK Version | Runtime | Status |
+|-------------|---------|--------|
+| `@wasmer/sdk@0.6.0` | Wasmer 6.x | Current stable, recommended |
+| `@wasmer/sdk@latest` | Varies | May have breaking changes |
+
+**Note:** The `@wasmer/sdk` has not been updated for Wasmer 7.x features yet. Use version `0.6.0` for stable WASIX support. See `/playground-wasmer6/` for Wasmer 6 compatible browser demos.
+
+**Cross-Origin Headers Required:** Pages using `@wasmer/sdk` require:
 - `Cross-Origin-Opener-Policy: same-origin`
 - `Cross-Origin-Embedder-Policy: require-corp`
 
@@ -338,14 +350,23 @@ wasm-opt -Os busybox-wasix.wasm -o busybox-wasix-opt.wasm
 
 ```
 busybox-wasix/
-├── busybox-wasix.wasm    # Pre-built WASIX binary
-├── README.md             # This file
+├── busybox-wasix.wasm      # Pre-built WASIX binary
+├── README.md               # This file
 ├── examples/
-│   └── test_wasix.sh     # Test suite (27 passing tests)
+│   └── test_wasix.sh       # Test suite (27 passing tests)
+├── playground/             # Browser demos (@aspect-sh/wasmer-js)
+│   ├── index.html          # Basic command runner
+│   ├── filesystem.html     # Virtual filesystem demo
+│   └── terminal.html       # Interactive terminal
+├── playground-wasmer6/     # Browser demos (@wasmer/sdk@0.6.0)
+│   ├── index.html          # Basic command runner (Wasmer 6)
+│   ├── filesystem.html     # Virtual filesystem (Wasmer 6)
+│   ├── terminal.html       # Interactive terminal (Wasmer 6)
+│   └── README.md           # Wasmer 6 specific docs
 ├── include/wasi/
-│   └── wasix_compat.h    # WASIX compatibility declarations
+│   └── wasix_compat.h      # WASIX compatibility declarations
 └── libbb/
-    └── wasi_stubs.c      # POSIX function stubs
+    └── wasi_stubs.c        # POSIX function stubs
 ```
 
 ## Running Tests
@@ -424,11 +445,15 @@ wasmer run --net --volume .:/ busybox-wasix-network.wasm -- wget http://example.
 
 ### 4. Browser Playground
 
-A `/playground` folder with interactive browser demos based on [webassembly.sh](https://github.com/wasmerio/webassembly.sh) and [@wasmer/wasm-terminal](https://www.npmjs.com/package/@wasmer/wasm-terminal):
+Two `/playground` folders with interactive browser demos:
 
-- **Browser example:** Working HTML page with @wasmer/sdk
+- `/playground/` - Uses `@aspect-sh/wasmer-js@latest`
+- `/playground-wasmer6/` - Uses `@wasmer/sdk@0.6.0` (Wasmer 6 compatible)
+
+Each includes:
+- **Browser example:** Working HTML page with command runner
 - **Virtual filesystem demo:** Upload/download files to/from WASM
-- **Interactive terminal:** Full shell experience in browser
+- **Interactive terminal:** Full shell experience with xterm.js
 
 ### 5. Additional Improvements
 
