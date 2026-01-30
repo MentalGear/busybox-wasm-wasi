@@ -138,7 +138,7 @@
         await init();
 
         statusEl.textContent = 'Loading BusyBox WASM module...';
-        const wasmUrl = '../busybox-wasix.wasm';
+        const wasmUrl = '../busybox-wasix-wasmer6.wasm';
         const response = await fetch(wasmUrl);
         if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
 

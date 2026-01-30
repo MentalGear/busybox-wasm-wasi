@@ -6,7 +6,9 @@ A port of [BusyBox](https://busybox.net/) to WebAssembly with WASIX support, inc
 
 This project provides BusyBox compiled to WebAssembly using [WASIX](https://wasix.org/), an extended version of WASI with better POSIX compatibility. Run common Unix utilities in any WASIX-compatible runtime (Wasmer CLI or browser via wasmer-js).
 
-**Pre-built binary:** `busybox-wasix.wasm` (~608KB)
+**Pre-built binaries:**
+- `busybox-wasix.wasm` (~608KB) - Default build
+- `busybox-wasix-wasmer6.wasm` (~608KB) - Wasmer 6 / SDK 0.6.x compatible
 
 ## Quick Start
 

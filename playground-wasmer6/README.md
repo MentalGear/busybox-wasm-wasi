@@ -10,6 +10,7 @@ This playground is specifically designed for compatibility with **Wasmer Runtime
 
 | Component | Version | Notes |
 |-----------|---------|-------|
+| WASM Build | `busybox-wasix-wasmer6.wasm` | Versioned for Wasmer 6 |
 | @wasmer/sdk | 0.6.0 | Official Wasmer JavaScript SDK |
 | Wasmer Runtime | 6.x | CLI runtime compatibility |
 | WASIX | Supported | Full WASIX features |
